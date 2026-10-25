@@ -49,6 +49,10 @@ contextBridge.exposeInMainWorld('api', {
     modrinthSearch: (p) => ipcRenderer.invoke('modrinth-search', p),
     modrinthInstall: (p) => ipcRenderer.invoke('modrinth-install', p),
     modrinthGetProject: (id) => ipcRenderer.invoke('modrinth-get-project', id),
+    modrinthGetFullProject: (id) => ipcRenderer.invoke('modrinth-get-full-project', id),
+    modrinthGetAllVersions: (id) => ipcRenderer.invoke('modrinth-get-all-versions', id),
+    modrinthInstallVersion: (p) => ipcRenderer.invoke('modrinth-install-version', p),
+    modrinthInstallModpack: (p) => ipcRenderer.invoke('modrinth-install-modpack', p),
 
     launch: (p) => ipcRenderer.invoke('launch', p),
     killGame: () => ipcRenderer.invoke('kill-game'),

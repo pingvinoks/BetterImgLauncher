@@ -51,13 +51,14 @@ function loadSettings() {
             nickname: 'Player', ram: 4096, javaPath: '/usr/bin/java',
             instanceName: 'BetterImageFix', extraJvmArgs: '', language: 'en',
             modrinthToken: '', authlibApi: 'https://account.ely.by/api/authlib-injector',
-            theme: 'm3-dark'
+            theme: 'm3-dark', customCss: ''
         };
         fs.writeFileSync(settingsFile, JSON.stringify(def, null, 2));
         return def;
     }
     const s = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
     if (!s.theme) s.theme = 'm3-dark';
+    if (s.customCss === undefined) s.customCss = '';
     return s;
 }
 ipcMain.handle('get-settings', () => loadSettings());
@@ -276,7 +277,7 @@ async function downloadFile(url, dest, onProgress, headers = {}) {
 }
 
 async function fetchJSON(url, headers = {}) {
-    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.1', ...headers } });
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.2', ...headers } });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
     return res.json();
 }
@@ -579,56 +580,62 @@ ipcMain.handle('export-instance', async (e, name) => {
 });
 
 // ================= IMPORT MRPACK =================
+async function importMrpackFromPath(zipPath, instanceName) {
+    const instDir = path.join(instancesDir, instanceName);
+    const zip = new AdmZip(zipPath);
+    const indexEntry = zip.getEntry('modrinth.index.json');
+    if (!indexEntry) throw new Error('No modrinth.index.json in archive');
+    const index = JSON.parse(indexEntry.getData().toString('utf-8'));
+    fs.mkdirSync(instDir, { recursive: true });
+    zip.getEntries().forEach(entry => {
+        if (entry.entryName.startsWith('overrides/') && !entry.isDirectory) {
+            const rel = entry.entryName.replace(/^overrides\//, '');
+            const out = path.join(instDir, rel);
+            fs.mkdirSync(path.dirname(out), { recursive: true });
+            fs.writeFileSync(out, entry.getData());
+        }
+    });
+    fs.mkdirSync(path.join(instDir, 'mods'), { recursive: true });
+    let i = 0;
+    const totalFiles = index.files.length;
+    let okCount = 0, skipCount = 0, errCount = 0;
+    for (const file of index.files) {
+        i++;
+        if (file.env && file.env.client === 'unsupported') continue;
+        const outPath = path.join(instDir, file.path);
+        fs.mkdirSync(path.dirname(outPath), { recursive: true });
+        if (fs.existsSync(outPath)) { skipCount++; continue; }
+        try { await downloadFile(file.downloads[0], outPath); okCount++; }
+        catch { errCount++; }
+    }
+    const iconCandidates = ['icon.png', 'pack.png'];
+    let icon = null;
+    for (const c of iconCandidates) {
+        const p = path.join(instDir, c);
+        if (fs.existsSync(p)) { icon = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64'); break; }
+    }
+    fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({
+        name: index.name, dependencies: index.dependencies,
+        importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null
+    }, null, 2));
+    const s = loadSettings();
+    const customVersion = await ensureLoader({
+        dependencies: index.dependencies,
+        javaPath: s.javaPath || '/usr/bin/java',
+        gameDir: instDir,
+        log: m => sendLog(m, 'loader')
+    });
+    return { index, customVersion, icon, okCount, skipCount, errCount };
+}
+
 ipcMain.handle('import-mrpack', async (e, { url, instanceName }) => {
     try {
-        const instDir = path.join(instancesDir, instanceName);
         const tmpZip = path.join(userData, `tmp-${Date.now()}.mrpack`);
+        sendLog('Downloading .mrpack...', 'info');
         await downloadFile(url, tmpZip, (done, total) => sendProgress({ kind: 'download', done, total, label: 'Downloading archive' }));
-        const zip = new AdmZip(tmpZip);
-        const indexEntry = zip.getEntry('modrinth.index.json');
-        if (!indexEntry) throw new Error('No modrinth.index.json in archive');
-        const index = JSON.parse(indexEntry.getData().toString('utf-8'));
-        fs.mkdirSync(instDir, { recursive: true });
-        zip.getEntries().forEach(entry => {
-            if (entry.entryName.startsWith('overrides/') && !entry.isDirectory) {
-                const rel = entry.entryName.replace(/^overrides\//, '');
-                const out = path.join(instDir, rel);
-                fs.mkdirSync(path.dirname(out), { recursive: true });
-                fs.writeFileSync(out, entry.getData());
-            }
-        });
-        fs.mkdirSync(path.join(instDir, 'mods'), { recursive: true });
-        let i = 0;
-        const totalFiles = index.files.length;
-        let okCount = 0, skipCount = 0, errCount = 0;
-        for (const file of index.files) {
-            i++;
-            if (file.env && file.env.client === 'unsupported') continue;
-            const outPath = path.join(instDir, file.path);
-            fs.mkdirSync(path.dirname(outPath), { recursive: true });
-            if (fs.existsSync(outPath)) { skipCount++; continue; }
-            try { await downloadFile(file.downloads[0], outPath); okCount++; }
-            catch { errCount++; }
-        }
-        const iconCandidates = ['icon.png', 'pack.png'];
-        let icon = null;
-        for (const c of iconCandidates) {
-            const p = path.join(instDir, c);
-            if (fs.existsSync(p)) { icon = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64'); break; }
-        }
-        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({
-            name: index.name, dependencies: index.dependencies,
-            importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null
-        }, null, 2));
-        const s = loadSettings();
-        const customVersion = await ensureLoader({
-            dependencies: index.dependencies,
-            javaPath: s.javaPath || '/usr/bin/java',
-            gameDir: instDir,
-            log: m => sendLog(m, 'loader')
-        });
+        const r = await importMrpackFromPath(tmpZip, instanceName);
         if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip);
-        return { ok: true, instanceDir: instDir, customVersion, icon };
+        return { ok: true, instanceDir: path.join(instancesDir, instanceName), customVersion: r.customVersion, icon: r.icon };
     } catch (err) {
         sendLog('Import error: ' + err.message, 'error');
         return { ok: false, error: err.message };
@@ -727,7 +734,7 @@ ipcMain.handle('create-instance', async (e, { name, mcVersion, loader, loaderVer
 // ================= MODRINTH =================
 function modrinthHeaders() {
     const s = loadSettings();
-    const headers = { 'User-Agent': 'BetterImgLauncher/1.0.1' };
+    const headers = { 'User-Agent': 'BetterImgLauncher/1.0.2' };
     if (s.modrinthToken && s.modrinthToken.trim()) headers['Authorization'] = s.modrinthToken.trim();
     return headers;
 }
@@ -772,6 +779,58 @@ ipcMain.handle('modrinth-get-project', async (e, projectId) => {
     try {
         const data = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, modrinthHeaders());
         return { ok: true, project: data };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-get-full-project', async (e, projectId) => {
+    try {
+        const project = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, modrinthHeaders());
+        let body = '';
+        try {
+            const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/body`, { headers: modrinthHeaders() });
+            if (res.ok) body = await res.text();
+        } catch {}
+        return { ok: true, project, body };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-get-all-versions', async (e, projectId) => {
+    try {
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
+        return { ok: true, versions };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-install-version', async (e, { instanceName, projectId, versionId, projectType }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        if (!fs.existsSync(instDir)) throw new Error('Instance not found');
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
+        const version = versions.find(v => v.id === versionId) || versions[0];
+        if (!version) throw new Error('Version not found');
+        const file = version.files.find(f => f.primary) || version.files[0];
+        let subDir = 'mods';
+        if (projectType === 'resourcepack') subDir = 'resourcepacks';
+        else if (projectType === 'shader') subDir = 'shaderpacks';
+        const targetDir = path.join(instDir, subDir);
+        fs.mkdirSync(targetDir, { recursive: true });
+        const dest = path.join(targetDir, file.filename);
+        await downloadFile(file.url, dest, null, modrinthHeaders());
+        return { ok: true, file: file.filename, version: version.version_number };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-install-modpack', async (e, { projectId, versionId, instanceName }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        if (fs.existsSync(instDir)) throw new Error('Instance already exists');
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
+        const version = versions.find(v => v.id === versionId) || versions[0];
+        if (!version) throw new Error('Version not found');
+        const file = version.files.find(f => f.primary) || version.files[0];
+        if (!file) throw new Error('No file in version');
+        const tmpZip = path.join(userData, `tmp-mp-${Date.now()}.mrpack`);
+        sendLog(`Downloading modpack ${file.filename}...`, 'info');
+        await downloadFile(file.url, tmpZip, null, modrinthHeaders());
+        const r = await importMrpackFromPath(tmpZip, instanceName);
+        if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip);
+        return { ok: true, instanceName, customVersion: r.customVersion, icon: r.icon };
     } catch (err) { return { ok: false, error: err.message }; }
 });
 

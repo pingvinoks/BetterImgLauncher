@@ -432,3 +432,4 @@ button .ripple {
     resize: none; user-select: text;
 }
 .file-editor textarea:focus { outline: 2px solid var(--primary); }
+#modDetailBody .discover-icon img { width: 100%; height: 100%; object-fit: cover; }

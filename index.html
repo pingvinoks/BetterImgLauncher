@@ -17,7 +17,7 @@
             <div class="brand-icon"><span class="material-symbols-rounded">deployed_code</span></div>
             <div class="brand-text">
                 <div class="brand-name">BetterImg</div>
-                <div class="brand-sub">v1.0.1</div>
+                <div class="brand-sub">v1.0.2</div>
             </div>
         </div>
 
@@ -49,7 +49,6 @@
     </aside>
 
     <main>
-        <!-- HOME -->
         <section id="tab-home" class="tab active">
             <div class="tab-header"><div><h2>Welcome back</h2><p class="tab-sub">Quick launch and status</p></div></div>
             <div class="home-grid">
@@ -66,7 +65,6 @@
             </div>
         </section>
 
-        <!-- LIBRARY -->
         <section id="tab-launch" class="tab">
             <div class="tab-header">
                 <div><h2>Library</h2><p class="tab-sub">Your modpack instances</p></div>
@@ -83,15 +81,15 @@
             </div>
         </section>
 
-        <!-- DISCOVER -->
         <section id="tab-discover" class="tab">
-            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth mods & resource packs</p></div></div>
+            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth mods, modpacks, resource packs & shaders</p></div></div>
             <div class="card search-card">
                 <div class="search-row">
                     <span class="material-symbols-rounded">search</span>
-                    <input id="discoverQuery" type="text" placeholder="Search mods..." />
+                    <input id="discoverQuery" type="text" placeholder="Search..." />
                     <select id="discoverType">
                         <option value="mod">Mods</option>
+                        <option value="modpack">Modpacks</option>
                         <option value="resourcepack">Resource Packs</option>
                         <option value="shader">Shaders</option>
                     </select>
@@ -112,7 +110,6 @@
             <div id="discoverResults" class="discover-grid"></div>
         </section>
 
-        <!-- NEW INSTANCE -->
         <section id="tab-import" class="tab">
             <div class="tab-header"><div><h2>New Instance</h2><p class="tab-sub">Create or import</p></div></div>
             <div class="mode-tabs">
@@ -137,7 +134,6 @@
             </div>
         </section>
 
-        <!-- FILES -->
         <section id="tab-files" class="tab">
             <div class="tab-header">
                 <div><h2>Files</h2><p class="tab-sub">Browse and edit instance files</p></div>
@@ -155,7 +151,6 @@
             <div id="filesList" class="file-list"></div>
         </section>
 
-        <!-- SETTINGS -->
         <section id="tab-settings" class="tab">
             <div class="tab-header"><div><h2>Settings</h2><p class="tab-sub">Global launcher configuration</p></div></div>
 
@@ -171,7 +166,15 @@
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">person</span> Accounts (offline + authlib)</h3>
+                <h3><span class="material-symbols-rounded">code</span> Custom CSS</h3>
+                <label>Paste your CSS here — it overrides the current theme.
+                    <textarea id="customCss" rows="6" style="width:100%;margin-top:8px;padding:12px;background:var(--surface-3);border:none;border-radius:12px;color:var(--on-surface);font-family:monospace;font-size:12px;resize:vertical;user-select:text;"></textarea>
+                </label>
+                <button id="applyCustomCss" class="outlined-btn">Apply CSS</button>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">person</span> Accounts</h3>
                 <div id="profileList" class="profile-list"></div>
                 <div class="row-inline" style="margin-top:12px">
                     <input id="newProfileName" type="text" placeholder="New nickname" class="mini-input" style="width:200px" />
@@ -188,7 +191,6 @@
                     <button id="authlibLoginBtn" class="filled-btn"><span class="material-symbols-rounded">login</span> Login</button>
                     <span id="authlibStatus" class="hint" style="margin:0"></span>
                 </div>
-                <p class="hint">Logs in and saves as separate account. Ely.by: https://account.ely.by/api/authlib-injector · LittleSkin: https://littleskin.cn/api/yggdrasil</p>
             </div>
 
             <div class="card">
@@ -220,7 +222,6 @@
             <button id="saveSettings" class="filled-btn"><span class="material-symbols-rounded">save</span> Save Settings</button>
         </section>
 
-        <!-- CONSOLE -->
         <section id="tab-console" class="tab">
             <div class="tab-header">
                 <div><h2>Console</h2><p class="tab-sub">Launcher and game logs</p></div>
@@ -256,6 +257,16 @@
             <button data-mtab="advanced">Advanced</button>
         </div>
         <div id="modalBody" class="modal-body"></div>
+    </div>
+</div>
+
+<div id="modDetailModal" class="modal modal-full">
+    <div class="modal-content modal-content-full">
+        <div class="modal-header">
+            <h2 id="modDetailTitle">Details</h2>
+            <button id="closeModDetail" class="icon-btn"><span class="material-symbols-rounded">close</span></button>
+        </div>
+        <div id="modDetailBody" class="modal-body"></div>
     </div>
 </div>
 

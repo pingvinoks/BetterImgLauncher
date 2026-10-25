@@ -1,8 +1,7 @@
 {
   "name": "betterimglauncher",
-  "version": "1.0.1",
-  "description": "Better Image Fix Launcher",
-  "desktopName": "com.betterimg.launcher",
+  "version": "1.0.2",
+  "description": "Better Image Modpack Launcher",
   "author": {
     "name": "krutoichervak22",
     "email": "a71613390@gmail.com"
@@ -15,7 +14,12 @@
     "dist": "electron-builder",
     "dist:mac": "electron-builder --mac --universal",
     "dist:win": "electron-builder --win --x64",
-    "dist:linux": "electron-builder --linux --x64"
+    "dist:linux": "electron-builder --linux --x64",
+    "build": "npm run build:mac && npm run build:linux && npm run build:win",
+    "build:mac": "electron-builder --mac --universal",
+    "build:win": "electron-builder --win --x64",
+    "build:linux": "electron-builder --linux --x64",
+    "build:clean": "rm -rf dist && npm run build"
   },
   "build": {
     "appId": "com.betterimg.launcher",
@@ -36,9 +40,8 @@
       "target": ["nsis", "portable"]
     },
     "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Game",
-      "maintainer": "Your Name <you@example.com>"
+      "target": ["AppImage"],
+      "category": "Game"
     },
     "nsis": {
       "oneClick": false,

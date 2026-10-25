@@ -24,23 +24,6 @@ function toast(msg, type = '') {
 }
 
 // ============ RIPPLE ============
-function attachRipple() {
-    document.querySelectorAll('button').forEach(btn => {
-        if (btn.dataset.rippleAttached) return;
-        btn.dataset.rippleAttached = '1';
-        btn.addEventListener('click', function (e) {
-            const rect = this.getBoundingClientRect();
-            const size = Math.max(rect.width, rect.height);
-            const ripple = document.createElement('span');
-            ripple.className = 'ripple';
-            ripple.style.width = ripple.style.height = size + 'px';
-            ripple.style.left = (e.clientX - rect.left - size / 2) + 'px';
-            ripple.style.top = (e.clientY - rect.top - size / 2) + 'px';
-            this.appendChild(ripple);
-            setTimeout(() => ripple.remove(), 700);
-        });
-    });
-}
 function attachRippleTo(el) {
     if (!el || el.dataset.rippleAttached) return;
     el.dataset.rippleAttached = '1';
@@ -55,6 +38,9 @@ function attachRippleTo(el) {
         this.appendChild(ripple);
         setTimeout(() => ripple.remove(), 700);
     });
+}
+function attachRipple() {
+    document.querySelectorAll('button').forEach(attachRippleTo);
 }
 
 // ============ LOG ============
@@ -115,7 +101,7 @@ document.querySelectorAll('.mode-tabs button').forEach(b => {
     });
 });
 
-// ============ THEME ============
+// ============ THEME + CUSTOM CSS ============
 function applyTheme(name) {
     document.body.setAttribute('data-theme', name || 'm3-dark');
     document.querySelectorAll('.theme-tile').forEach(t => {
@@ -132,6 +118,26 @@ document.querySelectorAll('.theme-tile').forEach(tile => {
         toast('Theme applied', 'success');
     });
 });
+
+function applyCustomCss(css) {
+    let style = document.getElementById('custom-css-style');
+    if (!style) {
+        style = document.createElement('style');
+        style.id = 'custom-css-style';
+        document.head.appendChild(style);
+    }
+    style.textContent = css || '';
+}
+if ($('applyCustomCss')) {
+    $('applyCustomCss').addEventListener('click', async () => {
+        const css = $('customCss').value;
+        applyCustomCss(css);
+        settings = settings || await window.api.getSettings();
+        settings.customCss = css;
+        await window.api.saveSettings(settings);
+        toast('Custom CSS applied', 'success');
+    });
+}
 
 // ============ SETTINGS ============
 if ($('pickJava')) $('pickJava').addEventListener('click', async () => {
@@ -152,7 +158,8 @@ if ($('saveSettings')) $('saveSettings').addEventListener('click', async () => {
         language: 'en',
         modrinthToken: $('modrinthToken')?.value || '',
         authlibApi: $('authlibApi')?.value || 'https://account.ely.by/api/authlib-injector',
-        theme: document.body.getAttribute('data-theme') || 'm3-dark'
+        theme: document.body.getAttribute('data-theme') || 'm3-dark',
+        customCss: $('customCss')?.value || ''
     });
     settings = await window.api.getSettings();
     toast('Settings saved', 'success');
@@ -401,7 +408,7 @@ async function runDiscoverSearch() {
 
     resultsEl.innerHTML = r.hits.map(hit => {
         const icon = hit.icon_url ? `<img src="${hit.icon_url}" />` : '?';
-        return `<div class="discover-card">
+        return `<div class="discover-card" data-project-id="${hit.project_id}" data-project-type="${hit.project_type}" style="cursor:pointer;">
       <div class="discover-icon">${icon}</div>
       <div class="discover-body">
         <div class="discover-title">${hit.title}</div>
@@ -410,36 +417,122 @@ async function runDiscoverSearch() {
           <span class="meta-badge">${(hit.downloads || 0).toLocaleString()} dl</span>
           ${(hit.categories || []).slice(0, 2).map(c => `<span class="meta-badge">${c}</span>`).join('')}
         </div>
-        <div class="discover-actions">
-          <button data-install="${hit.project_id}" data-type="${hit.project_type}">Install</button>
-        </div>
       </div>
     </div>`;
     }).join('');
 
-    resultsEl.querySelectorAll('button').forEach(attachRippleTo);
-    resultsEl.querySelectorAll('[data-install]').forEach(b => {
-        b.addEventListener('click', async () => {
-            const instance = $('discoverInstance')?.value;
-            if (!instance) return toast('Select an instance first', 'error');
-            b.disabled = true;
-            b.textContent = 'Installing...';
-            const res = await window.api.modrinthInstall({
-                instanceName: instance,
-                projectId: b.dataset.install,
-                projectType: b.dataset.type,
-                gameVersion: $('discoverMcVersion')?.value || '',
-                loader: $('discoverLoader')?.value || ''
-            });
-            b.disabled = false;
-            b.textContent = 'Install';
-            if (res.ok) toast(`Installed: ${res.file}`, 'success');
-            else toast('Error: ' + res.error, 'error');
+    resultsEl.querySelectorAll('.discover-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+            if (e.target.closest('button')) return;
+            const pid = card.dataset.projectId;
+            const ptype = card.dataset.projectType;
+            if (pid) openModDetail(pid, ptype);
         });
     });
 }
 if ($('discoverSearchBtn')) $('discoverSearchBtn').addEventListener('click', runDiscoverSearch);
 if ($('discoverQuery')) $('discoverQuery').addEventListener('keydown', e => { if (e.key === 'Enter') runDiscoverSearch(); });
+
+// ============ MOD DETAIL PAGE ============
+async function openModDetail(projectId, projectType) {
+    const modal = $('modDetailModal');
+    const body = $('modDetailBody');
+    const title = $('modDetailTitle');
+    if (!modal || !body) return;
+
+    title.textContent = 'Loading...';
+    body.innerHTML = '<div class="hint">Fetching project details...</div>';
+    modal.classList.add('active');
+
+    const res = await window.api.modrinthGetFullProject(projectId);
+    if (!res.ok) {
+        body.innerHTML = `<div class="hint" style="color:var(--error)">Error: ${res.error}</div>`;
+        return;
+    }
+
+    const p = res.project;
+    title.textContent = p.title;
+
+    const instance = $('discoverInstance')?.value;
+    const mc = $('discoverMcVersion')?.value || '';
+    const loader = $('discoverLoader')?.value || '';
+
+    let versionsHtml = '';
+    const vRes = await window.api.modrinthGetAllVersions(projectId);
+    if (vRes.ok && vRes.versions.length) {
+        const filtered = vRes.versions.filter(v => {
+            if (mc && !v.game_versions.includes(mc)) return false;
+            if (loader && loader !== 'vanilla' && v.loaders && !v.loaders.includes(loader)) return false;
+            return true;
+        });
+        const list = (filtered.length ? filtered : vRes.versions).slice(0, 15);
+        versionsHtml = `
+      <h3 style="margin-top:16px;"><span class="material-symbols-rounded">list</span> Versions</h3>
+      <div style="max-height:260px;overflow-y:auto;">
+        ${list.map(v => `
+          <div class="list-item">
+            <span class="name">${v.version_number} <span class="meta">(${v.game_versions.join(', ')})</span></span>
+            <div class="actions">
+              <button data-install-version="${v.id}" data-project-type="${projectType}">Install</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      ${instance ? '' : '<p class="hint">Select an instance in Discover to enable install.</p>'}
+    `;
+    } else {
+        versionsHtml = '<p class="hint">No versions available.</p>';
+    }
+
+    const description = res.body ? res.body.replace(/</g, '&lt;') : (p.description || 'No description');
+    body.innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:16px;">
+      <div class="discover-icon" style="width:80px;height:80px;font-size:32px;flex-shrink:0;">
+        ${p.icon_url ? `<img src="${p.icon_url}" />` : p.title[0]}
+      </div>
+      <div style="flex:1;">
+        <div style="font-weight:600;font-size:18px;">${p.title}</div>
+        <div style="color:var(--on-surface-variant);font-size:13px;margin-top:4px;">${p.description || ''}</div>
+        <div class="discover-meta" style="margin-top:8px;">
+          <span class="meta-badge">${(p.downloads || 0).toLocaleString()} downloads</span>
+          <span class="meta-badge">${p.project_type}</span>
+          ${(p.categories || []).slice(0, 3).map(c => `<span class="meta-badge">${c}</span>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div style="white-space:pre-wrap;font-size:13px;line-height:1.6;color:var(--on-surface-variant);max-height:320px;overflow-y:auto;padding:12px;background:var(--surface-3);border-radius:12px;">
+      ${description}
+    </div>
+    ${versionsHtml}
+  `;
+
+    body.querySelectorAll('button').forEach(attachRippleTo);
+    body.querySelectorAll('[data-install-version]').forEach(b => {
+        b.addEventListener('click', async () => {
+            if (!instance) return toast('Select an instance first', 'error');
+            b.disabled = true;
+            b.textContent = 'Installing...';
+            let r;
+            if (projectType === 'modpack') {
+                r = await window.api.modrinthInstallModpack({
+                    projectId, versionId: b.dataset.installVersion, instanceName: instance
+                });
+            } else {
+                r = await window.api.modrinthInstallVersion({
+                    instanceName: instance, projectId,
+                    versionId: b.dataset.installVersion, projectType
+                });
+            }
+            b.disabled = false;
+            b.textContent = 'Install';
+            if (r.ok) {
+                toast(projectType === 'modpack' ? 'Modpack installed ✅' : `Installed: ${r.file}`, 'success');
+                if (projectType === 'modpack') await refreshInstances();
+            } else toast('Error: ' + r.error, 'error');
+        });
+    });
+}
+if ($('closeModDetail')) $('closeModDetail').addEventListener('click', () => $('modDetailModal').classList.remove('active'));
 
 // ============ FILES ============
 async function refreshFilesInstances() {
@@ -450,7 +543,6 @@ async function refreshFilesInstances() {
         list.map(i => `<option value="${i.name}">${i.displayName} (${i.mcVersion})</option>`).join('');
     if (filesCurrentInstance) sel.value = filesCurrentInstance;
 }
-
 function getFileIcon(name) {
     const ext = name.toLowerCase().split('.').pop();
     if (['png','jpg','jpeg','gif','webp'].includes(ext)) return 'image';
@@ -465,7 +557,6 @@ function formatBytes(b) {
     if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
     return (b / 1024 / 1024).toFixed(1) + ' MB';
 }
-
 async function loadFiles(path) {
     if (!filesCurrentInstance) return;
     filesCurrentPath = path;
@@ -526,7 +617,6 @@ async function loadFiles(path) {
         else toast(rr.error, 'error');
     }));
 }
-
 async function openFileEditor(relPath) {
     const r = await window.api.fileRead({ instanceName: filesCurrentInstance, rel: relPath });
     if (!r.ok) return toast(r.error, 'error');
@@ -554,7 +644,6 @@ async function openFileEditor(relPath) {
         else toast(w.error, 'error');
     });
 }
-
 function initFilesTab() {
     if ($('filesInstanceSelect')) $('filesInstanceSelect').addEventListener('change', e => {
         filesCurrentInstance = e.target.value;
@@ -848,7 +937,9 @@ window.addEventListener('drop', async e => {
 (async () => {
     settings = await window.api.getSettings();
     applyTheme(settings.theme || 'm3-dark');
+    applyCustomCss(settings.customCss || '');
 
+    if ($('customCss')) $('customCss').value = settings.customCss || '';
     if ($('ram')) { $('ram').value = settings.ram; if ($('ramLabel')) $('ramLabel').textContent = `${settings.ram} MB`; }
     if ($('javaPath')) $('javaPath').value = settings.javaPath || '/usr/bin/java';
     if ($('extraJvmArgs')) $('extraJvmArgs').value = settings.extraJvmArgs || '';
