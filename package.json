@@ -1,8 +1,14 @@
 {
   "name": "betterimglauncher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Better Image Fix Launcher",
-  "author": "Krutoichervak22. All rights eated by chrome",
+  "desktopName": "com.betterimg.launcher",
+  "author": {
+    "name": "krutoichervak22",
+    "email": "a71613390@gmail.com"
+  },
+  "homepage": "https://github.com/YOUR_USERNAME/betterimglauncher",
+  "license": "Unlicense",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -23,24 +29,16 @@
       "!node_modules/.cache/**"
     ],
     "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": ["dmg", "zip"],
       "category": "public.app-category.games"
     },
     "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
+      "target": ["nsis", "portable"]
     },
     "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Game"
+      "target": ["AppImage", "deb"],
+      "category": "Game",
+      "maintainer": "Your Name <you@example.com>"
     },
     "nsis": {
       "oneClick": false,

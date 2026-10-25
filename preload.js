@@ -5,6 +5,10 @@ contextBridge.exposeInMainWorld('api', {
     saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
     getHistory: () => ipcRenderer.invoke('get-history'),
     pickJava: () => ipcRenderer.invoke('pick-java'),
+    findJavas: () => ipcRenderer.invoke('find-javas'),
+
+    authlibLogin: (p) => ipcRenderer.invoke('authlib-login', p),
+    saveAuthlibProfile: (p) => ipcRenderer.invoke('save-authlib-profile', p),
 
     importMrpack: (p) => ipcRenderer.invoke('import-mrpack', p),
     repairInstance: (p) => ipcRenderer.invoke('repair-instance', p),
@@ -20,6 +24,15 @@ contextBridge.exposeInMainWorld('api', {
     addMods: (p) => ipcRenderer.invoke('add-mods', p),
     pickMods: () => ipcRenderer.invoke('pick-mods'),
 
+    fileList: (p) => ipcRenderer.invoke('file-list', p),
+    fileRead: (p) => ipcRenderer.invoke('file-read', p),
+    fileDelete: (p) => ipcRenderer.invoke('file-delete', p),
+    fileRename: (p) => ipcRenderer.invoke('file-rename', p),
+    fileMkdir: (p) => ipcRenderer.invoke('file-mkdir', p),
+    fileWrite: (p) => ipcRenderer.invoke('file-write', p),
+    fileImport: (p) => ipcRenderer.invoke('file-import', p),
+    filePick: () => ipcRenderer.invoke('file-pick'),
+
     listProfiles: () => ipcRenderer.invoke('list-profiles'),
     addProfile: (n) => ipcRenderer.invoke('add-profile', n),
     setActiveProfile: (id) => ipcRenderer.invoke('set-active-profile', id),
@@ -34,7 +47,6 @@ contextBridge.exposeInMainWorld('api', {
     createInstance: (p) => ipcRenderer.invoke('create-instance', p),
 
     modrinthSearch: (p) => ipcRenderer.invoke('modrinth-search', p),
-    modrinthGetVersions: (p) => ipcRenderer.invoke('modrinth-get-versions', p),
     modrinthInstall: (p) => ipcRenderer.invoke('modrinth-install', p),
     modrinthGetProject: (id) => ipcRenderer.invoke('modrinth-get-project', id),
 

@@ -3,42 +3,32 @@
 <head>
     <meta charset="UTF-8" />
     <title>BetterImgLauncher</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body data-theme="m3-dark">
 <div class="titlebar"></div>
 
 <div class="app">
-    <aside>
+    <aside class="rail">
         <div class="brand">
-            <div class="brand-icon">B</div>
+            <div class="brand-icon"><span class="material-symbols-rounded">deployed_code</span></div>
             <div class="brand-text">
                 <div class="brand-name">BetterImg</div>
-                <div class="brand-sub">Launcher v1.4</div>
+                <div class="brand-sub">v1.0.1</div>
             </div>
         </div>
 
-        <nav>
-            <button data-tab="launch" class="active">
-                <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                <span>Library</span>
-            </button>
-            <button data-tab="discover">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
-                <span>Discover</span>
-            </button>
-            <button data-tab="import">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                <span>New Instance</span>
-            </button>
-            <button data-tab="settings">
-                <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 3a6.94 6.94 0 000 2l2.06 1.6-2 3.46-2.44-.98a6.94 6.94 0 01-1.74 1l-.37 2.92h-4l-.37-2.92a6.94 6.94 0 01-1.74-1l-2.44.98-2-3.46L3.06 13a6.94 6.94 0 000-2L1 9.4l2-3.46 2.44.98a6.94 6.94 0 011.74-1L7.55 3h4l.37 2.92a6.94 6.94 0 011.74 1l2.44-.98 2 3.46L21.06 11z"/></svg>
-                <span>Settings</span>
-            </button>
-            <button data-tab="console">
-                <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V6a2 2 0 00-2-2zM6 18l4-6-4-6h2.5L12 12l-3.5 6H6z"/></svg>
-                <span>Console</span>
-            </button>
+        <nav class="rail-nav">
+            <button data-tab="home" class="active" data-tooltip="Home"><span class="material-symbols-rounded">home</span><span class="nav-label">Home</span></button>
+            <button data-tab="launch" data-tooltip="Library"><span class="material-symbols-rounded">grid_view</span><span class="nav-label">Library</span></button>
+            <button data-tab="discover" data-tooltip="Discover"><span class="material-symbols-rounded">explore</span><span class="nav-label">Discover</span></button>
+            <button data-tab="import" data-tooltip="New Instance"><span class="material-symbols-rounded">add_box</span><span class="nav-label">New Instance</span></button>
+            <button data-tab="files" data-tooltip="Files"><span class="material-symbols-rounded">folder</span><span class="nav-label">Files</span></button>
+            <button data-tab="settings" data-tooltip="Settings"><span class="material-symbols-rounded">settings</span><span class="nav-label">Settings</span></button>
+            <button data-tab="console" data-tooltip="Console"><span class="material-symbols-rounded">terminal</span><span class="nav-label">Console</span></button>
         </nav>
 
         <div class="profile-box" id="profileBox">
@@ -51,7 +41,7 @@
 
         <div class="side-footer">
             <div class="sys-stat">
-                <div class="sys-row"><span>RAM</span><span id="ramStat">—</span></div>
+                <div class="sys-row"><span class="material-symbols-rounded" style="font-size:16px">memory</span><span id="ramStat">—</span></div>
                 <div class="sys-bar"><div id="ramBar"></div></div>
                 <div class="sys-row small" id="cpuStat">—</div>
             </div>
@@ -59,152 +49,150 @@
     </aside>
 
     <main>
-        <!-- ============ LIBRARY ============ -->
-        <section id="tab-launch" class="tab active">
-            <div class="tab-header">
-                <div>
-                    <h2>Library</h2>
-                    <p class="tab-sub">Your modpack instances</p>
+        <!-- HOME -->
+        <section id="tab-home" class="tab active">
+            <div class="tab-header"><div><h2>Welcome back</h2><p class="tab-sub">Quick launch and status</p></div></div>
+            <div class="home-grid">
+                <div class="card home-main">
+                    <h3><span class="material-symbols-rounded">history</span> Last played</h3>
+                    <div id="lastPlayedCard" class="last-played"><div class="hint">No instances yet. Create one to get started.</div></div>
                 </div>
-                <div class="row-inline">
-                    <button id="refreshInstances" class="ghost" title="Refresh">
-                        <svg viewBox="0 0 24 24" width="16"><path d="M17.65 6.35A7.95 7.95 0 0012 4a8 8 0 108 8h-2a6 6 0 11-1.76-4.24L13 11h7V4l-2.35 2.35z"/></svg>
-                    </button>
-                    <button id="openInstances" class="ghost" title="Open instances folder">
-                        <svg viewBox="0 0 24 24" width="16"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg>
-                    </button>
+                <div class="card">
+                    <h3><span class="material-symbols-rounded">monitor_heart</span> System</h3>
+                    <div class="list-item"><span class="name">Java detected</span><span class="meta" id="javaCount">Checking...</span></div>
+                    <div class="list-item"><span class="name">Active profile</span><span class="meta" id="homeProfile">—</span></div>
+                    <div class="list-item"><span class="name">Platform</span><span class="meta" id="homePlatform">—</span></div>
                 </div>
             </div>
+        </section>
 
+        <!-- LIBRARY -->
+        <section id="tab-launch" class="tab">
+            <div class="tab-header">
+                <div><h2>Library</h2><p class="tab-sub">Your modpack instances</p></div>
+                <div class="row-inline">
+                    <button id="refreshInstances" class="icon-btn" data-tooltip="Refresh"><span class="material-symbols-rounded">refresh</span></button>
+                    <button id="openInstances" class="icon-btn" data-tooltip="Open folder"><span class="material-symbols-rounded">folder_open</span></button>
+                </div>
+            </div>
             <div id="instanceGrid" class="instance-grid"></div>
             <div id="emptyLib" class="empty">
-                <div class="empty-icon">📦</div>
+                <span class="material-symbols-rounded" style="font-size:64px">inventory_2</span>
                 <div class="empty-title">No instances yet</div>
                 <div class="empty-sub">Create one on the "New Instance" tab</div>
             </div>
         </section>
 
-        <!-- ============ DISCOVER (MODRINTH) ============ -->
+        <!-- DISCOVER -->
         <section id="tab-discover" class="tab">
-            <div class="tab-header">
-                <div>
-                    <h2>Discover</h2>
-                    <p class="tab-sub">Browse Modrinth mods & resource packs</p>
-                </div>
-            </div>
-
-            <div class="card" style="margin-bottom:16px">
-                <div class="row-inline" style="gap:8px;flex-wrap:wrap">
-                    <input id="discoverQuery" type="text" placeholder="Search mods..." class="mini-input" style="flex:1;width:auto" />
-                    <select id="discoverType" class="mini-input" style="width:140px">
+            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth mods & resource packs</p></div></div>
+            <div class="card search-card">
+                <div class="search-row">
+                    <span class="material-symbols-rounded">search</span>
+                    <input id="discoverQuery" type="text" placeholder="Search mods..." />
+                    <select id="discoverType">
                         <option value="mod">Mods</option>
                         <option value="resourcepack">Resource Packs</option>
                         <option value="shader">Shaders</option>
                     </select>
-                    <button id="discoverSearchBtn" class="primary" style="padding:8px 16px;font-size:13px">Search</button>
+                    <button id="discoverSearchBtn" class="filled-btn">Search</button>
                 </div>
-                <div class="row-inline" style="margin-top:10px;gap:8px;flex-wrap:wrap">
-                    <select id="discoverMcVersion" class="mini-input" style="width:140px">
-                        <option value="">Any MC version</option>
-                    </select>
-                    <select id="discoverLoader" class="mini-input" style="width:140px">
+                <div class="search-row">
+                    <select id="discoverMcVersion" class="chip-select"><option value="">Any MC version</option></select>
+                    <select id="discoverLoader" class="chip-select">
                         <option value="">Any loader</option>
                         <option value="fabric">Fabric</option>
                         <option value="forge">Forge</option>
                         <option value="neoforge">NeoForge</option>
                         <option value="quilt">Quilt</option>
                     </select>
-                    <select id="discoverInstance" class="mini-input" style="width:180px">
-                        <option value="">Select instance to install</option>
-                    </select>
+                    <select id="discoverInstance" class="chip-select"><option value="">Select instance</option></select>
                 </div>
             </div>
-
             <div id="discoverResults" class="discover-grid"></div>
         </section>
 
-        <!-- ============ NEW INSTANCE ============ -->
+        <!-- NEW INSTANCE -->
         <section id="tab-import" class="tab">
-            <div class="tab-header">
-                <div>
-                    <h2>New Instance</h2>
-                    <p class="tab-sub">Create a vanilla / modded instance or import a .mrpack</p>
-                </div>
-            </div>
-
+            <div class="tab-header"><div><h2>New Instance</h2><p class="tab-sub">Create or import</p></div></div>
             <div class="mode-tabs">
-                <button data-mode="mrpack" class="active">📦 From .mrpack</button>
-                <button data-mode="manual">⚙️ Manual (MC version + loader)</button>
+                <button data-mode="mrpack" class="active"><span class="material-symbols-rounded">package_2</span> From .mrpack</button>
+                <button data-mode="manual"><span class="material-symbols-rounded">tune</span> Manual</button>
             </div>
-
             <div class="mode-pane active" data-pane="mrpack">
                 <div class="card">
-                    <label>.mrpack URL
-                        <input id="mrpackUrl" type="text"
-                               value="https://www.dropbox.com/scl/fi/mg1d7m3gma7bjcsymw7b2/Better-Image-Fix1V1.mrpack?rlkey=b23ehien0m7xlrsra6ppp4d53&st=xsujk87m&dl=1" />
-                    </label>
-                    <label>Instance name
-                        <input id="instanceName" type="text" value="BetterImageFix" />
-                    </label>
-                    <button id="importBtn" class="primary">
-                        <svg viewBox="0 0 24 24" width="18"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
-                        Download & Install
-                    </button>
+                    <label>.mrpack URL <input id="mrpackUrl" type="text" value="https://www.dropbox.com/scl/fi/mg1d7m3gma7bjcsymw7b2/Better-Image-Fix1V1.mrpack?rlkey=b23ehien0m7xlrsra6ppp4d53&st=xsujk87m&dl=1" /></label>
+                    <label>Instance name <input id="instanceName" type="text" value="BetterImageFix" /></label>
+                    <button id="importBtn" class="filled-btn"><span class="material-symbols-rounded">download</span> Download & Install</button>
                 </div>
             </div>
-
             <div class="mode-pane" data-pane="manual">
                 <div class="card">
-                    <label>Instance name
-                        <input id="newInstName" type="text" placeholder="My Cool Instance" />
-                    </label>
-                    <label>Minecraft version
-                        <select id="mcVersionSelect">
-                            <option value="">Loading versions...</option>
-                        </select>
-                    </label>
-                    <label>Loader
-                        <select id="loaderSelect">
-                            <option value="vanilla">Vanilla (no mods)</option>
-                            <option value="fabric">Fabric</option>
-                            <option value="quilt">Quilt</option>
-                            <option value="forge">Forge</option>
-                            <option value="neoforge">NeoForge</option>
-                        </select>
-                    </label>
-                    <label id="loaderVersionWrap" style="display:none">Loader version
-                        <select id="loaderVersionSelect">
-                            <option value="">Select MC version first</option>
-                        </select>
-                    </label>
-                    <button id="createInstanceBtn" class="primary">
-                        <svg viewBox="0 0 24 24" width="18"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                        Create Instance
-                    </button>
+                    <label>Instance name <input id="newInstName" type="text" placeholder="My Cool Instance" /></label>
+                    <label>Minecraft version <select id="mcVersionSelect"><option value="">Loading...</option></select></label>
+                    <label>Loader <select id="loaderSelect"><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select></label>
+                    <label id="loaderVersionWrap" style="display:none">Loader version <select id="loaderVersionSelect"><option value="">Select MC first</option></select></label>
+                    <button id="createInstanceBtn" class="filled-btn"><span class="material-symbols-rounded">add</span> Create Instance</button>
                 </div>
             </div>
         </section>
 
-        <!-- ============ SETTINGS ============ -->
-        <section id="tab-settings" class="tab">
+        <!-- FILES -->
+        <section id="tab-files" class="tab">
             <div class="tab-header">
-                <div>
-                    <h2>Settings</h2>
-                    <p class="tab-sub">Global launcher configuration</p>
+                <div><h2>Files</h2><p class="tab-sub">Browse and edit instance files</p></div>
+                <div class="row-inline">
+                    <select id="filesInstanceSelect" class="chip-select" style="width:220px"><option value="">Select instance</option></select>
+                </div>
+            </div>
+            <div class="file-toolbar">
+                <button id="filesUpBtn" class="icon-btn" data-tooltip="Up"><span class="material-symbols-rounded">arrow_upward</span></button>
+                <input id="filesPathInput" type="text" class="file-path" placeholder="/" readonly />
+                <button id="filesImportBtn" class="outlined-btn"><span class="material-symbols-rounded">upload</span> Import</button>
+                <button id="filesMkdirBtn" class="outlined-btn"><span class="material-symbols-rounded">create_new_folder</span> New Folder</button>
+                <button id="filesRefreshBtn" class="icon-btn" data-tooltip="Refresh"><span class="material-symbols-rounded">refresh</span></button>
+            </div>
+            <div id="filesList" class="file-list"></div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="tab-settings" class="tab">
+            <div class="tab-header"><div><h2>Settings</h2><p class="tab-sub">Global launcher configuration</p></div></div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">palette</span> Appearance</h3>
+                <div class="theme-grid" id="themeGrid">
+                    <button class="theme-tile" data-theme-value="m3-dark"><div class="theme-preview m3-dark-preview"></div><span>Material Dark</span></button>
+                    <button class="theme-tile" data-theme-value="m3-light"><div class="theme-preview m3-light-preview"></div><span>Material Light</span></button>
+                    <button class="theme-tile" data-theme-value="m3-purple"><div class="theme-preview m3-purple-preview"></div><span>Material Purple</span></button>
+                    <button class="theme-tile" data-theme-value="m3-green"><div class="theme-preview m3-green-preview"></div><span>Material Green</span></button>
+                    <button class="theme-tile" data-theme-value="classic"><div class="theme-preview classic-preview"></div><span>Classic</span></button>
                 </div>
             </div>
 
             <div class="card">
-                <h3>Accounts (offline profiles)</h3>
+                <h3><span class="material-symbols-rounded">person</span> Accounts (offline + authlib)</h3>
                 <div id="profileList" class="profile-list"></div>
                 <div class="row-inline" style="margin-top:12px">
                     <input id="newProfileName" type="text" placeholder="New nickname" class="mini-input" style="width:200px" />
-                    <button id="addProfileBtn" class="ghost">+ Add</button>
+                    <button id="addProfileBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> Add</button>
                 </div>
             </div>
 
             <div class="card">
-                <h3>Performance</h3>
+                <h3><span class="material-symbols-rounded">key</span> Authlib (Ely.by / LittleSkin)</h3>
+                <label>API Root <input id="authlibApi" type="text" placeholder="https://account.ely.by/api/authlib-injector" /></label>
+                <label>Username <input id="authlibUser" type="text" /></label>
+                <label>Password <input id="authlibPass" type="password" /></label>
+                <div class="row-inline" style="margin-top:8px">
+                    <button id="authlibLoginBtn" class="filled-btn"><span class="material-symbols-rounded">login</span> Login</button>
+                    <span id="authlibStatus" class="hint" style="margin:0"></span>
+                </div>
+                <p class="hint">Logs in and saves as separate account. Ely.by: https://account.ely.by/api/authlib-injector · LittleSkin: https://littleskin.cn/api/yggdrasil</p>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">speed</span> Performance</h3>
                 <label>Memory: <span id="ramLabel" class="value">4096 MB</span>
                     <input id="ram" type="range" min="1024" max="16384" step="512" />
                     <div class="ram-presets">
@@ -214,45 +202,33 @@
                         <button data-ram="8192" class="chip">8 GB</button>
                     </div>
                 </label>
-                <label>Extra JVM arguments
-                    <input id="extraJvmArgs" type="text" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" />
-                </label>
+                <label>Extra JVM arguments <input id="extraJvmArgs" type="text" placeholder="-XX:+UseG1GC" /></label>
             </div>
 
             <div class="card">
-                <h3>Java</h3>
-                <label>Java path
-                    <div class="row">
-                        <input id="javaPath" type="text" readonly />
-                        <button id="pickJava" class="ghost">Browse</button>
-                    </div>
-                </label>
+                <h3><span class="material-symbols-rounded">coffee</span> Java</h3>
+                <label>Java path <div class="row"><input id="javaPath" type="text" readonly /><button id="pickJava" class="outlined-btn">Browse</button></div></label>
+                <button id="detectJavaBtn" class="outlined-btn"><span class="material-symbols-rounded">search</span> Auto-detect Java</button>
+                <div id="javaList" class="java-list"></div>
             </div>
 
             <div class="card">
-                <h3>Modrinth API</h3>
-                <label>Personal Access Token (optional)
-                    <input id="modrinthToken" type="text" placeholder="mrp_..." />
-                </label>
-                <p class="hint">Used for authenticated Modrinth API requests. Not required for public search/install.</p>
+                <h3><span class="material-symbols-rounded">api</span> Modrinth API</h3>
+                <label>Personal Access Token (optional) <input id="modrinthToken" type="text" placeholder="mrp_..." /></label>
             </div>
 
-            <button id="saveSettings" class="primary">Save Settings</button>
+            <button id="saveSettings" class="filled-btn"><span class="material-symbols-rounded">save</span> Save Settings</button>
         </section>
 
-        <!-- ============ CONSOLE ============ -->
+        <!-- CONSOLE -->
         <section id="tab-console" class="tab">
             <div class="tab-header">
-                <div>
-                    <h2>Console</h2>
-                    <p class="tab-sub">Launcher and game logs in real time</p>
-                </div>
+                <div><h2>Console</h2><p class="tab-sub">Launcher and game logs</p></div>
                 <div class="row-inline">
                     <input id="logFilter" type="text" placeholder="Filter..." class="mini-input" />
-                    <button id="clearLog" class="ghost">Clear</button>
+                    <button id="clearLog" class="icon-btn" data-tooltip="Clear"><span class="material-symbols-rounded">delete</span></button>
                 </div>
             </div>
-
             <div class="log-filters">
                 <button class="chip active" data-type="all">All</button>
                 <button class="chip" data-type="info">Info</button>
@@ -261,18 +237,16 @@
                 <button class="chip" data-type="error">Error</button>
                 <button class="chip" data-type="game">Game</button>
             </div>
-
             <pre id="log" class="log-full"></pre>
         </section>
     </main>
 </div>
 
-<!-- INSTANCE MODAL -->
-<div id="instanceModal" class="modal">
-    <div class="modal-content">
+<div id="instanceModal" class="modal modal-full">
+    <div class="modal-content modal-content-full">
         <div class="modal-header">
             <h2 id="modalTitle">Instance</h2>
-            <button id="closeModal" class="ghost">✕</button>
+            <button id="closeModal" class="icon-btn"><span class="material-symbols-rounded">close</span></button>
         </div>
         <div class="modal-tabs">
             <button data-mtab="overview" class="active">Overview</button>
@@ -286,10 +260,9 @@
 </div>
 
 <div id="dropOverlay" class="drop-overlay">
+    <span class="material-symbols-rounded" style="font-size:64px">upload_file</span>
     <div class="drop-overlay-text">Drop files here</div>
-    <div class="drop-overlay-sub">.jar mods → adds to the open instance</div>
 </div>
-
 <div id="toast" class="toast"></div>
 
 <script src="renderer.js"></script>
