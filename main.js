@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -14,35 +14,58 @@ const settingsFile = path.join(userData, 'settings.json');
 const historyFile = path.join(userData, 'history.json');
 const profilesFile = path.join(userData, 'profiles.json');
 const authlibDir = path.join(userData, 'authlib');
+const backupsDir = path.join(userData, 'backups');
+const serversFile = path.join(userData, 'servers.json');
 
-if (!fs.existsSync(instancesDir)) fs.mkdirSync(instancesDir, { recursive: true });
-if (!fs.existsSync(authlibDir)) fs.mkdirSync(authlibDir, { recursive: true });
+[instancesDir, authlibDir, backupsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
 let win;
+let tray;
 let currentGame = null;
+let discordRpc = null;
 
 function createWindow() {
     win = new BrowserWindow({
-        width: 1320, height: 880, minWidth: 1024, minHeight: 680,
+        width: 1320, height: 880, minWidth: 900, minHeight: 600,
         backgroundColor: '#141218', title: 'BetterImgLauncher',
-        titleBarStyle: 'hiddenInset',
-        trafficLightPosition: { x: 16, y: 16 },
+        titleBarStyle: 'hidden',
+        frame: false,
+        trafficLightPosition: { x: -100, y: -100 },
         vibrancy: 'under-window', visualEffectState: 'active',
         webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false }
     });
     win.loadFile('index.html');
+    win.setMenuBarVisibility(false);
+
+    if (process.platform === 'darwin') {
+        try {
+            const iconPath = path.join(__dirname, 'icon.png');
+            const img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+            tray = new Tray(img);
+            tray.setToolTip('BetterImgLauncher');
+            tray.setContextMenu(Menu.buildFromTemplate([
+                { label: 'Show', click: () => win.show() },
+                { label: 'Quit', click: () => app.quit() }
+            ]));
+        } catch {}
+    }
 }
 
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
-function sendLog(msg, type = 'log') {
-    if (win && !win.isDestroyed()) win.webContents.send('log', { msg, type, ts: Date.now() });
-}
-function sendProgress(p) {
-    if (win && !win.isDestroyed()) win.webContents.send('progress', p);
-}
+function sendLog(msg, type = 'log') { if (win && !win.isDestroyed()) win.webContents.send('log', { msg, type, ts: Date.now() }); }
+function sendProgress(p) { if (win && !win.isDestroyed()) win.webContents.send('progress', p); }
+function notify(title, body) { try { new Notification({ title, body }).show(); } catch {} }
+
+// ================= WINDOW CONTROLS =================
+ipcMain.handle('win-minimize', () => { if (win) win.minimize(); });
+ipcMain.handle('win-maximize', () => {
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize(); else win.maximize();
+});
+ipcMain.handle('win-close', () => { if (win) win.close(); });
 
 // ================= SETTINGS =================
 function loadSettings() {
@@ -51,7 +74,7 @@ function loadSettings() {
             nickname: 'Player', ram: 4096, javaPath: '/usr/bin/java',
             instanceName: 'BetterImageFix', extraJvmArgs: '', language: 'en',
             modrinthToken: '', authlibApi: 'https://account.ely.by/api/authlib-injector',
-            theme: 'm3-dark', customCss: ''
+            theme: 'm3-dark', customCss: '', wallpaper: '', autoBackup: true, discordRpc: false
         };
         fs.writeFileSync(settingsFile, JSON.stringify(def, null, 2));
         return def;
@@ -59,30 +82,49 @@ function loadSettings() {
     const s = JSON.parse(fs.readFileSync(settingsFile, 'utf-8'));
     if (!s.theme) s.theme = 'm3-dark';
     if (s.customCss === undefined) s.customCss = '';
+    if (s.wallpaper === undefined) s.wallpaper = '';
+    if (s.autoBackup === undefined) s.autoBackup = true;
+    if (s.discordRpc === undefined) s.discordRpc = false;
     return s;
 }
 ipcMain.handle('get-settings', () => loadSettings());
 ipcMain.handle('save-settings', (e, s) => { fs.writeFileSync(settingsFile, JSON.stringify(s, null, 2)); return true; });
 
-// ================= HISTORY =================
-function loadHistory() {
-    if (!fs.existsSync(historyFile)) return [];
-    try { return JSON.parse(fs.readFileSync(historyFile, 'utf-8')); } catch { return []; }
+ipcMain.handle('pick-wallpaper', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }] });
+    if (r.canceled) return null;
+    const data = fs.readFileSync(r.filePaths[0]).toString('base64');
+    const ext = path.extname(r.filePaths[0]).slice(1);
+    return `data:image/${ext};base64,${data}`;
+});
+
+// ================= SERVERS =================
+function loadServers() {
+    if (!fs.existsSync(serversFile)) { fs.writeFileSync(serversFile, '[]'); return []; }
+    try { return JSON.parse(fs.readFileSync(serversFile, 'utf-8')); } catch { return []; }
 }
-function saveHistory(h) { fs.writeFileSync(historyFile, JSON.stringify(h.slice(0, 50), null, 2)); }
+function saveServers(s) { fs.writeFileSync(serversFile, JSON.stringify(s, null, 2)); }
+ipcMain.handle('list-servers', () => loadServers());
+ipcMain.handle('add-server', (e, { name, ip }) => {
+    const list = loadServers();
+    const id = 's-' + Date.now();
+    list.push({ id, name: name || ip, ip, addedAt: Date.now() });
+    saveServers(list);
+    return { ok: true, id };
+});
+ipcMain.handle('delete-server', (e, id) => { saveServers(loadServers().filter(s => s.id !== id)); return { ok: true }; });
+
+// ================= HISTORY =================
+function loadHistory() { if (!fs.existsSync(historyFile)) return []; try { return JSON.parse(fs.readFileSync(historyFile, 'utf-8')); } catch { return []; } }
+function saveHistory(h) { fs.writeFileSync(historyFile, JSON.stringify(h.slice(0, 100), null, 2)); }
 ipcMain.handle('get-history', () => loadHistory());
+ipcMain.handle('clear-history', () => { saveHistory([]); return true; });
 
 // ================= PROFILES =================
 function loadProfiles() {
-    if (!fs.existsSync(profilesFile)) {
-        const def = [{ id: 'default', name: 'Player', active: true, type: 'offline' }];
-        fs.writeFileSync(profilesFile, JSON.stringify(def, null, 2));
-        return def;
-    }
-    try {
-        const list = JSON.parse(fs.readFileSync(profilesFile, 'utf-8'));
-        return list.map(p => ({ type: 'offline', ...p }));
-    } catch { return [{ id: 'default', name: 'Player', active: true, type: 'offline' }]; }
+    if (!fs.existsSync(profilesFile)) { const def = [{ id: 'default', name: 'Player', active: true, type: 'offline' }]; fs.writeFileSync(profilesFile, JSON.stringify(def, null, 2)); return def; }
+    try { return JSON.parse(fs.readFileSync(profilesFile, 'utf-8')).map(p => ({ type: 'offline', ...p })); }
+    catch { return [{ id: 'default', name: 'Player', active: true, type: 'offline' }]; }
 }
 function saveProfiles(p) { fs.writeFileSync(profilesFile, JSON.stringify(p, null, 2)); }
 
@@ -90,51 +132,33 @@ ipcMain.handle('list-profiles', () => loadProfiles());
 ipcMain.handle('add-profile', (e, name) => {
     const profiles = loadProfiles();
     if (!name || !name.trim()) return { ok: false, error: 'Empty name' };
-    if (profiles.some(p => p.name.toLowerCase() === name.trim().toLowerCase())) return { ok: false, error: 'Profile already exists' };
+    if (profiles.some(p => p.name.toLowerCase() === name.trim().toLowerCase())) return { ok: false, error: 'Exists' };
     const id = 'p-' + Date.now();
     profiles.push({ id, name: name.trim(), active: profiles.length === 0, type: 'offline' });
     saveProfiles(profiles);
     return { ok: true, id };
 });
-ipcMain.handle('set-active-profile', (e, id) => {
-    const profiles = loadProfiles();
-    profiles.forEach(p => p.active = p.id === id);
-    saveProfiles(profiles);
-    return { ok: true };
-});
-ipcMain.handle('delete-profile', (e, id) => {
-    let profiles = loadProfiles().filter(p => p.id !== id);
-    if (profiles.length && !profiles.some(p => p.active)) profiles[0].active = true;
-    saveProfiles(profiles);
-    return { ok: true };
-});
+ipcMain.handle('set-active-profile', (e, id) => { const p = loadProfiles(); p.forEach(x => x.active = x.id === id); saveProfiles(p); return { ok: true }; });
+ipcMain.handle('delete-profile', (e, id) => { let p = loadProfiles().filter(x => x.id !== id); if (p.length && !p.some(x => x.active)) p[0].active = true; saveProfiles(p); return { ok: true }; });
 ipcMain.handle('rename-profile', (e, { id, name }) => {
-    if (!name || !name.trim()) return { ok: false, error: 'Empty name' };
-    const profiles = loadProfiles();
-    const p = profiles.find(x => x.id === id);
-    if (!p) return { ok: false, error: 'Not found' };
-    p.name = name.trim();
-    saveProfiles(profiles);
-    return { ok: true };
+    if (!name || !name.trim()) return { ok: false, error: 'Empty' };
+    const p = loadProfiles(); const x = p.find(y => y.id === id);
+    if (!x) return { ok: false, error: 'Not found' };
+    x.name = name.trim(); saveProfiles(p); return { ok: true };
 });
 
 // ================= AUTHLIB =================
 async function downloadAuthlib() {
     const jarPath = path.join(authlibDir, 'authlib-injector.jar');
     if (fs.existsSync(jarPath)) return jarPath;
-    sendLog('Downloading authlib-injector...', 'info');
-    const rel = await fetch('https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest', {
-        headers: { 'User-Agent': 'BetterImgLauncher' }
-    });
-    if (!rel.ok) throw new Error('Failed to fetch authlib release');
+    const rel = await fetch('https://api.github.com/repos/yushijinhun/authlib-injector/releases/latest', { headers: { 'User-Agent': 'BetterImgLauncher' } });
+    if (!rel.ok) throw new Error('Failed to fetch');
     const data = await rel.json();
     const asset = data.assets.find(a => a.name.endsWith('.jar') && a.name.includes('authlib-injector'));
-    if (!asset) throw new Error('No authlib jar in release');
+    if (!asset) throw new Error('No jar');
     const res = await fetch(asset.browser_download_url);
-    if (!res.ok) throw new Error('Download failed');
     const buf = await res.buffer();
     fs.writeFileSync(jarPath, buf);
-    sendLog('authlib-injector ready', 'success');
     return jarPath;
 }
 
@@ -142,28 +166,13 @@ ipcMain.handle('authlib-login', async (e, { apiRoot, username, password }) => {
     try {
         const base = apiRoot.replace(/\/+$/, '');
         const res = await fetch(`${base}/authserver/authenticate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'User-Agent': 'BetterImgLauncher' },
-            body: JSON.stringify({
-                agent: { name: 'Minecraft', version: 1 },
-                username, password, clientToken: 'betterimg-' + Date.now()
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': 'BetterImgLauncher' },
+            body: JSON.stringify({ agent: { name: 'Minecraft', version: 1 }, username, password, clientToken: 'betterimg-' + Date.now() })
         });
         const data = await res.json();
         if (!res.ok || !data.accessToken) throw new Error(data.errorMessage || 'Login failed');
-        sendLog(`Logged in as ${data.selectedProfile?.name || username}`, 'success');
-        return {
-            ok: true,
-            accessToken: data.accessToken,
-            clientToken: data.clientToken || 'betterimg',
-            uuid: data.selectedProfile?.id,
-            name: data.selectedProfile?.name || username,
-            apiRoot: base
-        };
-    } catch (err) {
-        sendLog('Authlib login error: ' + err.message, 'error');
-        return { ok: false, error: err.message };
-    }
+        return { ok: true, accessToken: data.accessToken, clientToken: data.clientToken || 'betterimg', uuid: data.selectedProfile?.id, name: data.selectedProfile?.name || username, apiRoot: base };
+    } catch (err) { return { ok: false, error: err.message }; }
 });
 
 function detectService(apiRoot) {
@@ -177,20 +186,15 @@ ipcMain.handle('save-authlib-profile', (e, data) => {
     try {
         const profiles = loadProfiles();
         const id = 'auth-' + Date.now();
-        const service = detectService(data.apiRoot);
-        const profile = {
-            id, name: data.name, type: 'authlib', service,
+        profiles.push({
+            id, name: data.name, type: 'authlib', service: detectService(data.apiRoot),
             apiRoot: data.apiRoot, accessToken: data.accessToken,
             clientToken: data.clientToken, uuid: data.uuid,
-            active: false
-        };
-        if (!profiles.some(p => p.active)) profile.active = true;
-        profiles.push(profile);
+            active: !profiles.some(p => p.active)
+        });
         saveProfiles(profiles);
         return { ok: true, id };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
 
 // ================= JAVA =================
@@ -205,17 +209,13 @@ function detectJavaVersion(javaPath) {
         execFile(javaPath, ['-version'], { timeout: 5000 }, (err, stdout, stderr) => {
             const text = (stderr || '') + (stdout || '');
             const m = text.match(/version "(\d+)(?:\.(\d+))?/);
-            if (m) {
-                const major = m[1] === '1' ? parseInt(m[2], 10) : parseInt(m[1], 10);
-                resolve(major);
-            } else resolve(null);
+            if (m) resolve(m[1] === '1' ? parseInt(m[2], 10) : parseInt(m[1], 10)); else resolve(null);
         });
     });
 }
 
 ipcMain.handle('find-javas', async () => {
-    const found = [];
-    const candidates = [];
+    const found = []; const candidates = [];
     const pushDir = (dir) => {
         if (!dir || !fs.existsSync(dir)) return;
         try {
@@ -223,10 +223,8 @@ ipcMain.handle('find-javas', async () => {
                 const full = path.join(dir, sub);
                 if (fs.statSync(full).isDirectory()) {
                     const exe = process.platform === 'win32' ? 'javaw.exe' : 'java';
-                    const p = path.join(full, 'bin', exe);
-                    if (fs.existsSync(p)) candidates.push(p);
-                    const p2 = path.join(full, 'Contents', 'Home', 'bin', exe);
-                    if (fs.existsSync(p2)) candidates.push(p2);
+                    const p = path.join(full, 'bin', exe); if (fs.existsSync(p)) candidates.push(p);
+                    const p2 = path.join(full, 'Contents', 'Home', 'bin', exe); if (fs.existsSync(p2)) candidates.push(p2);
                 }
             }
         } catch {}
@@ -234,34 +232,20 @@ ipcMain.handle('find-javas', async () => {
     if (process.platform === 'darwin') {
         pushDir('/Library/Java/JavaVirtualMachines');
         pushDir(path.join(os.homedir(), 'Library/Java/JavaVirtualMachines'));
-        try {
-            const hm = execSync('/usr/libexec/java_home -V 2>&1', { encoding: 'utf-8' });
-            for (const line of hm.split('\n')) {
-                const m = line.match(/(\/.*?\/Contents\/Home)/);
-                if (m) candidates.push(path.join(m[1], 'bin', 'java'));
-            }
-        } catch {}
+        try { const hm = execSync('/usr/libexec/java_home -V 2>&1', { encoding: 'utf-8' }); for (const line of hm.split('\n')) { const m = line.match(/(\/.*?\/Contents\/Home)/); if (m) candidates.push(path.join(m[1], 'bin', 'java')); } } catch {}
     } else if (process.platform === 'win32') {
-        pushDir('C:\\Program Files\\Java');
-        pushDir('C:\\Program Files\\Eclipse Adoptium');
-        pushDir('C:\\Program Files\\Microsoft');
+        pushDir('C:\\Program Files\\Java'); pushDir('C:\\Program Files\\Eclipse Adoptium'); pushDir('C:\\Program Files\\Microsoft');
         try { const out = execSync('where java', { encoding: 'utf-8' }); out.split('\n').forEach(l => { if (l.trim()) candidates.push(l.trim()); }); } catch {}
     } else {
-        pushDir('/usr/lib/jvm');
-        pushDir('/usr/java');
+        pushDir('/usr/lib/jvm'); pushDir('/usr/java');
         try { const out = execSync('which -a java', { encoding: 'utf-8' }); out.split('\n').forEach(l => { if (l.trim()) candidates.push(l.trim()); }); } catch {}
     }
     const seen = new Set();
-    for (const p of candidates) {
-        if (seen.has(p)) continue;
-        seen.add(p);
-        const ver = await detectJavaVersion(p);
-        if (ver) found.push({ path: p, version: ver });
-    }
+    for (const p of candidates) { if (seen.has(p)) continue; seen.add(p); const v = await detectJavaVersion(p); if (v) found.push({ path: p, version: v }); }
     return found.sort((a, b) => b.version - a.version);
 });
 
-// ================= DOWNLOAD HELPERS =================
+// ================= DOWNLOAD =================
 async function downloadFile(url, dest, onProgress, headers = {}) {
     const res = await fetch(url, { redirect: 'follow', headers });
     if (!res.ok) throw new Error(`Download failed ${res.status}: ${url}`);
@@ -269,15 +253,10 @@ async function downloadFile(url, dest, onProgress, headers = {}) {
     let done = 0;
     const fileStream = fs.createWriteStream(dest);
     res.body.on('data', chunk => { done += chunk.length; if (onProgress) onProgress(done, total); });
-    await new Promise((resolve, reject) => {
-        res.body.pipe(fileStream);
-        res.body.on('error', reject);
-        fileStream.on('finish', resolve);
-    });
+    await new Promise((resolve, reject) => { res.body.pipe(fileStream); res.body.on('error', reject); fileStream.on('finish', resolve); });
 }
-
 async function fetchJSON(url, headers = {}) {
-    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.2', ...headers } });
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.3', ...headers } });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
     return res.json();
 }
@@ -290,16 +269,7 @@ function instMeta(instDir) {
 }
 function instSize(dir) {
     let total = 0;
-    try {
-        const walk = d => {
-            for (const f of fs.readdirSync(d)) {
-                const p = path.join(d, f);
-                const st = fs.statSync(p);
-                if (st.isDirectory()) walk(p); else total += st.size;
-            }
-        };
-        walk(dir);
-    } catch {}
+    try { const walk = d => { for (const f of fs.readdirSync(d)) { const p = path.join(d, f); const st = fs.statSync(p); if (st.isDirectory()) walk(p); else total += st.size; } }; walk(dir); } catch {}
     return total;
 }
 
@@ -310,17 +280,14 @@ ipcMain.handle('list-instances', () => {
         const m = instMeta(dir);
         if (!m) return null;
         return {
-            name,
-            displayName: m.name || name,
+            name, displayName: m.name || name,
             mcVersion: m.dependencies?.minecraft,
-            loader: Object.entries(m.dependencies || {})
-                .filter(([k]) => k !== 'minecraft')
-                .map(([k, v]) => `${k.replace('-loader', '')} ${v}`)[0] || 'vanilla',
-            importedAt: m.importedAt,
-            size: instSize(dir),
-            icon: m.icon || null,
-            lastPlayed: m.lastPlayed || null,
-            playTime: m.playTime || 0
+            loader: Object.entries(m.dependencies || {}).filter(([k]) => k !== 'minecraft').map(([k, v]) => `${k.replace('-loader', '')} ${v}`)[0] || 'vanilla',
+            importedAt: m.importedAt, size: instSize(dir), icon: m.icon || null,
+            lastPlayed: m.lastPlayed || null, playTime: m.playTime || 0,
+            customIcon: m.customIcon || null, server: m.server || null,
+            perInstance: m.perInstance || {}, modpackVersion: m.modpackVersion || null,
+            modpackProjectId: m.modpackProjectId || null
         };
     }).filter(Boolean);
 });
@@ -347,6 +314,21 @@ ipcMain.handle('open-instance-folder', (e, { name, sub }) => {
     return shell.openPath(p);
 });
 
+ipcMain.handle('pick-instance-icon', async (e, name) => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
+    if (r.canceled) return { ok: false };
+    const buf = fs.readFileSync(r.filePaths[0]).toString('base64');
+    const ext = path.extname(r.filePaths[0]).slice(1);
+    const dataUrl = `data:image/${ext};base64,${buf}`;
+    const p = path.join(instancesDir, name, 'instance.json');
+    if (fs.existsSync(p)) {
+        const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        m.customIcon = dataUrl;
+        fs.writeFileSync(p, JSON.stringify(m, null, 2));
+    }
+    return { ok: true, icon: dataUrl };
+});
+
 // ================= FILE MANAGER =================
 function safeJoinInstance(instanceName, rel) {
     const instDir = path.join(instancesDir, instanceName);
@@ -356,141 +338,84 @@ function safeJoinInstance(instanceName, rel) {
     if (!normTarget.startsWith(normInst)) throw new Error('Path outside instance');
     return normTarget;
 }
-
 ipcMain.handle('file-list', (e, { instanceName, rel }) => {
     try {
         const dir = safeJoinInstance(instanceName, rel);
         if (!fs.existsSync(dir)) return { ok: true, entries: [], path: rel || '' };
         if (!fs.statSync(dir).isDirectory()) return { ok: false, error: 'Not a directory' };
-        const entries = fs.readdirSync(dir).map(name => {
-            const full = path.join(dir, name);
-            const st = fs.statSync(full);
-            return { name, isDir: st.isDirectory(), size: st.size, mtime: st.mtimeMs };
-        }).sort((a, b) => {
-            if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-            return a.name.localeCompare(b.name);
-        });
+        const entries = fs.readdirSync(dir).map(name => { const full = path.join(dir, name); const st = fs.statSync(full); return { name, isDir: st.isDirectory(), size: st.size, mtime: st.mtimeMs }; }).sort((a, b) => { if (a.isDir !== b.isDir) return a.isDir ? -1 : 1; return a.name.localeCompare(b.name); });
         return { ok: true, entries, path: rel || '' };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-read', (e, { instanceName, rel, maxBytes = 1024 * 1024 }) => {
     try {
         const full = safeJoinInstance(instanceName, rel);
-        if (!fs.existsSync(full)) return { ok: false, error: 'File not found' };
+        if (!fs.existsSync(full)) return { ok: false, error: 'Not found' };
         const st = fs.statSync(full);
-        if (st.isDirectory()) return { ok: false, error: 'Is a directory' };
-        if (st.size > maxBytes) return { ok: false, error: `File too large (> ${maxBytes} bytes)` };
+        if (st.isDirectory()) return { ok: false, error: 'Is dir' };
+        if (st.size > maxBytes) return { ok: false, error: 'Too large' };
         const ext = path.extname(full).toLowerCase();
-        const binaryExts = ['.jar', '.zip', '.png', '.jpg', '.jpeg', '.gif', '.ogg', '.mp3', '.wav', '.dat', '.nbt'];
-        if (binaryExts.includes(ext)) return { ok: false, error: 'Binary file — cannot preview' };
-        const content = fs.readFileSync(full, 'utf-8');
-        return { ok: true, content, ext };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+        if (['.jar', '.zip', '.png', '.jpg', '.jpeg', '.gif', '.ogg', '.mp3', '.wav', '.dat', '.nbt'].includes(ext)) return { ok: false, error: 'Binary' };
+        return { ok: true, content: fs.readFileSync(full, 'utf-8'), ext };
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-delete', (e, { instanceName, rel }) => {
     try {
         const full = safeJoinInstance(instanceName, rel);
         if (!fs.existsSync(full)) return { ok: false, error: 'Not found' };
         const st = fs.statSync(full);
-        if (st.isDirectory()) fs.rmSync(full, { recursive: true, force: true });
-        else fs.unlinkSync(full);
+        if (st.isDirectory()) fs.rmSync(full, { recursive: true, force: true }); else fs.unlinkSync(full);
         return { ok: true };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-rename', (e, { instanceName, rel, newName }) => {
     try {
         const full = safeJoinInstance(instanceName, rel);
         if (!fs.existsSync(full)) return { ok: false, error: 'Not found' };
-        if (!newName || newName.includes('/') || newName.includes('\\')) return { ok: false, error: 'Invalid name' };
-        const dir = path.dirname(full);
-        const dest = path.join(dir, newName);
-        if (fs.existsSync(dest)) return { ok: false, error: 'Already exists' };
+        if (!newName || newName.includes('/') || newName.includes('\\')) return { ok: false, error: 'Invalid' };
+        const dest = path.join(path.dirname(full), newName);
+        if (fs.existsSync(dest)) return { ok: false, error: 'Exists' };
         fs.renameSync(full, dest);
         return { ok: true };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-mkdir', (e, { instanceName, rel, name }) => {
     try {
         const parent = safeJoinInstance(instanceName, rel);
-        if (!name || name.includes('/') || name.includes('\\')) return { ok: false, error: 'Invalid name' };
-        const dest = path.join(parent, name);
-        fs.mkdirSync(dest, { recursive: true });
+        if (!name || name.includes('/') || name.includes('\\')) return { ok: false, error: 'Invalid' };
+        fs.mkdirSync(path.join(parent, name), { recursive: true });
         return { ok: true };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-write', (e, { instanceName, rel, content }) => {
-    try {
-        const full = safeJoinInstance(instanceName, rel);
-        fs.writeFileSync(full, content, 'utf-8');
-        return { ok: true };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    try { fs.writeFileSync(safeJoinInstance(instanceName, rel), content, 'utf-8'); return { ok: true }; }
+    catch (err) { return { ok: false, error: err.message }; }
 });
-
 ipcMain.handle('file-import', async (e, { instanceName, rel, files }) => {
     try {
         const dir = safeJoinInstance(instanceName, rel);
         fs.mkdirSync(dir, { recursive: true });
         let added = 0;
         for (const src of files) {
-            const dest = path.join(dir, path.basename(src));
-            let final = dest;
-            if (fs.existsSync(final)) {
-                const ext = path.extname(src);
-                const base = path.basename(src, ext);
-                let n = 1;
-                while (fs.existsSync(final)) { final = path.join(dir, `${base}-${n}${ext}`); n++; }
-            }
-            fs.copyFileSync(src, final);
-            added++;
+            let final = path.join(dir, path.basename(src));
+            if (fs.existsSync(final)) { const ext = path.extname(src); const base = path.basename(src, ext); let n = 1; while (fs.existsSync(final)) { final = path.join(dir, `${base}-${n}${ext}`); n++; } }
+            fs.copyFileSync(src, final); added++;
         }
         return { ok: true, added };
-    } catch (err) {
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
-
-ipcMain.handle('file-pick', async () => {
-    const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'] });
-    if (r.canceled) return [];
-    return r.filePaths;
-});
+ipcMain.handle('file-pick', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'] }); if (r.canceled) return []; return r.filePaths; });
 
 // ================= MODS =================
-ipcMain.handle('list-mods', (e, instanceName) => {
-    const modsDir = path.join(instancesDir, instanceName, 'mods');
-    if (!fs.existsSync(modsDir)) return [];
-    return fs.readdirSync(modsDir)
-        .filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled'))
-        .map(f => ({
-            file: f,
-            name: f.replace(/\.jar(\.disabled)?$/, ''),
-            enabled: f.endsWith('.jar'),
-            size: fs.statSync(path.join(modsDir, f)).size
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+ipcMain.handle('list-mods', (e, name) => {
+    const d = path.join(instancesDir, name, 'mods');
+    if (!fs.existsSync(d)) return [];
+    return fs.readdirSync(d).filter(f => f.endsWith('.jar') || f.endsWith('.jar.disabled')).map(f => ({ file: f, name: f.replace(/\.jar(\.disabled)?$/, ''), enabled: f.endsWith('.jar'), size: fs.statSync(path.join(d, f)).size })).sort((a, b) => a.name.localeCompare(b.name));
 });
 ipcMain.handle('toggle-mod', (e, { instanceName, file }) => {
     const full = path.join(instancesDir, instanceName, 'mods', file);
     if (!fs.existsSync(full)) return { ok: false };
-    if (file.endsWith('.disabled')) fs.renameSync(full, full.replace(/\.disabled$/, ''));
-    else fs.renameSync(full, full + '.disabled');
+    if (file.endsWith('.disabled')) fs.renameSync(full, full.replace(/\.disabled$/, '')); else fs.renameSync(full, full + '.disabled');
     return { ok: true };
 });
 ipcMain.handle('delete-mod', (e, { instanceName, file }) => {
@@ -500,46 +425,29 @@ ipcMain.handle('delete-mod', (e, { instanceName, file }) => {
 });
 ipcMain.handle('add-mods', async (e, { instanceName, files }) => {
     try {
-        const modsDir = path.join(instancesDir, instanceName, 'mods');
-        fs.mkdirSync(modsDir, { recursive: true });
+        const d = path.join(instancesDir, instanceName, 'mods'); fs.mkdirSync(d, { recursive: true });
         let added = 0, skipped = 0;
         for (const src of files) {
             if (!src.toLowerCase().endsWith('.jar')) { skipped++; continue; }
-            let dest = path.join(modsDir, path.basename(src));
-            if (fs.existsSync(dest)) {
-                const base = path.basename(src, '.jar');
-                let n = 1, final = dest;
-                while (fs.existsSync(final)) { final = path.join(modsDir, `${base}-${n}.jar`); n++; }
-                dest = final;
-            }
-            fs.copyFileSync(src, dest);
-            added++;
+            let dest = path.join(d, path.basename(src));
+            if (fs.existsSync(dest)) { const base = path.basename(src, '.jar'); let n = 1, final = dest; while (fs.existsSync(final)) { final = path.join(d, `${base}-${n}.jar`); n++; } dest = final; }
+            fs.copyFileSync(src, dest); added++;
         }
         return { ok: true, added, skipped };
     } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('pick-mods', async () => {
-    const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Minecraft Mod', extensions: ['jar'] }] });
-    if (r.canceled) return [];
-    return r.filePaths;
-});
+ipcMain.handle('pick-mods', async () => { const r = await dialog.showOpenDialog(win, { properties: ['openFile', 'multiSelections'], filters: [{ name: 'Mod', extensions: ['jar'] }] }); if (r.canceled) return []; return r.filePaths; });
 ipcMain.handle('list-folder', (e, { instanceName, sub }) => {
     const p = path.join(instancesDir, instanceName, sub);
     if (!fs.existsSync(p)) return [];
-    return fs.readdirSync(p).map(f => {
-        const full = path.join(p, f);
-        const st = fs.statSync(full);
-        return { name: f, isDir: st.isDirectory(), size: st.size, mtime: st.mtimeMs };
-    });
+    return fs.readdirSync(p).map(f => { const full = path.join(p, f); const st = fs.statSync(full); return { name: f, isDir: st.isDirectory(), size: st.size, mtime: st.mtimeMs }; });
 });
 
 // ================= COPY / EXPORT =================
 ipcMain.handle('copy-instance', async (e, { name, newName, copyOptions }) => {
     try {
-        const src = path.join(instancesDir, name);
-        const dst = path.join(instancesDir, newName);
-        if (fs.existsSync(dst)) throw new Error('Instance already exists');
-        if (!fs.existsSync(src)) throw new Error('Source instance not found');
+        const src = path.join(instancesDir, name); const dst = path.join(instancesDir, newName);
+        if (fs.existsSync(dst)) throw new Error('Exists');
         fs.mkdirSync(dst, { recursive: true });
         const skip = [];
         if (!copyOptions.mods) skip.push('mods');
@@ -552,40 +460,56 @@ ipcMain.handle('copy-instance', async (e, { name, newName, copyOptions }) => {
                 if (skip.includes(f) && s === src) continue;
                 const sp = path.join(s, f); const dp = path.join(d, f);
                 const st = fs.statSync(sp);
-                if (st.isDirectory()) { fs.mkdirSync(dp, { recursive: true }); copyRec(sp, dp); }
-                else fs.copyFileSync(sp, dp);
+                if (st.isDirectory()) { fs.mkdirSync(dp, { recursive: true }); copyRec(sp, dp); } else fs.copyFileSync(sp, dp);
             }
         };
         copyRec(src, dst);
-        const metaPath = path.join(dst, 'instance.json');
-        if (fs.existsSync(metaPath)) {
-            const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-            meta.name = newName;
-            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
-        }
+        const mp = path.join(dst, 'instance.json');
+        if (fs.existsSync(mp)) { const m = JSON.parse(fs.readFileSync(mp, 'utf-8')); m.name = newName; fs.writeFileSync(mp, JSON.stringify(m, null, 2)); }
         return { ok: true };
     } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('export-instance', async (e, name) => {
     try {
         const src = path.join(instancesDir, name);
-        if (!fs.existsSync(src)) throw new Error('Instance not found');
+        if (!fs.existsSync(src)) throw new Error('Not found');
         const save = await dialog.showSaveDialog(win, { defaultPath: `${name}.zip`, filters: [{ name: 'Zip', extensions: ['zip'] }] });
         if (save.canceled) return { ok: false };
-        const zip = new AdmZip();
-        zip.addLocalFolder(src);
+        const zip = new AdmZip(); zip.addLocalFolder(src); zip.writeZip(save.filePath);
+        return { ok: true, path: save.filePath };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('export-mrpack', async (e, name) => {
+    try {
+        const instDir = path.join(instancesDir, name); const meta = instMeta(instDir);
+        if (!meta) throw new Error('Not found');
+        const save = await dialog.showSaveDialog(win, { defaultPath: `${name}.mrpack`, filters: [{ name: 'Modrinth', extensions: ['mrpack'] }] });
+        if (save.canceled) return { ok: false };
+        const zip = new AdmZip(); const files = [];
+        const modsDir = path.join(instDir, 'mods');
+        if (fs.existsSync(modsDir)) for (const f of fs.readdirSync(modsDir)) {
+            if (!f.endsWith('.jar')) continue;
+            const buf = fs.readFileSync(path.join(modsDir, f));
+            files.push({ path: `mods/${f}`, hashes: { sha512: require('crypto').createHash('sha512').update(buf).digest('hex') }, downloads: [], fileSize: buf.length });
+            zip.addFile(`overrides/mods/${f}`, buf);
+        }
+        for (const d of ['config', 'defaultconfigs', 'kubejs', 'scripts', 'resourcepacks', 'shaderpacks']) {
+            const p = path.join(instDir, d);
+            if (fs.existsSync(p)) zip.addLocalFolder(p, `overrides/${d}`);
+        }
+        zip.addFile('modrinth.index.json', Buffer.from(JSON.stringify({ formatVersion: 1, game: 'minecraft', versionId: meta.modpackVersion || '1.0.0', name: meta.name || name, summary: 'Exported', files, dependencies: meta.dependencies }, null, 2)));
         zip.writeZip(save.filePath);
         return { ok: true, path: save.filePath };
     } catch (err) { return { ok: false, error: err.message }; }
 });
 
-// ================= IMPORT MRPACK =================
+// ================= IMPORT =================
 async function importMrpackFromPath(zipPath, instanceName) {
     const instDir = path.join(instancesDir, instanceName);
     const zip = new AdmZip(zipPath);
-    const indexEntry = zip.getEntry('modrinth.index.json');
-    if (!indexEntry) throw new Error('No modrinth.index.json in archive');
-    const index = JSON.parse(indexEntry.getData().toString('utf-8'));
+    const idx = zip.getEntry('modrinth.index.json');
+    if (!idx) throw new Error('No index');
+    const index = JSON.parse(idx.getData().toString('utf-8'));
     fs.mkdirSync(instDir, { recursive: true });
     zip.getEntries().forEach(entry => {
         if (entry.entryName.startsWith('overrides/') && !entry.isDirectory) {
@@ -596,105 +520,263 @@ async function importMrpackFromPath(zipPath, instanceName) {
         }
     });
     fs.mkdirSync(path.join(instDir, 'mods'), { recursive: true });
-    let i = 0;
-    const totalFiles = index.files.length;
-    let okCount = 0, skipCount = 0, errCount = 0;
+    let ok = 0, skip = 0, err = 0;
     for (const file of index.files) {
-        i++;
         if (file.env && file.env.client === 'unsupported') continue;
         const outPath = path.join(instDir, file.path);
         fs.mkdirSync(path.dirname(outPath), { recursive: true });
-        if (fs.existsSync(outPath)) { skipCount++; continue; }
-        try { await downloadFile(file.downloads[0], outPath); okCount++; }
-        catch { errCount++; }
+        if (fs.existsSync(outPath)) { skip++; continue; }
+        if (!file.downloads || !file.downloads.length) { skip++; continue; }
+        try { await downloadFile(file.downloads[0], outPath); ok++; } catch { err++; }
     }
-    const iconCandidates = ['icon.png', 'pack.png'];
     let icon = null;
-    for (const c of iconCandidates) {
-        const p = path.join(instDir, c);
-        if (fs.existsSync(p)) { icon = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64'); break; }
-    }
-    fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({
-        name: index.name, dependencies: index.dependencies,
-        importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null
-    }, null, 2));
+    for (const c of ['icon.png', 'pack.png']) { const p = path.join(instDir, c); if (fs.existsSync(p)) { icon = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64'); break; } }
+    fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({ name: index.name, dependencies: index.dependencies, importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null, modpackVersion: index.versionId || '1.0.0' }, null, 2));
     const s = loadSettings();
-    const customVersion = await ensureLoader({
-        dependencies: index.dependencies,
-        javaPath: s.javaPath || '/usr/bin/java',
-        gameDir: instDir,
-        log: m => sendLog(m, 'loader')
-    });
-    return { index, customVersion, icon, okCount, skipCount, errCount };
+    const cv = await ensureLoader({ dependencies: index.dependencies, javaPath: s.javaPath || '/usr/bin/java', gameDir: instDir, log: m => sendLog(m, 'loader') });
+    return { index, customVersion: cv, icon, ok, skip, err };
 }
 
 ipcMain.handle('import-mrpack', async (e, { url, instanceName }) => {
     try {
-        const tmpZip = path.join(userData, `tmp-${Date.now()}.mrpack`);
-        sendLog('Downloading .mrpack...', 'info');
-        await downloadFile(url, tmpZip, (done, total) => sendProgress({ kind: 'download', done, total, label: 'Downloading archive' }));
-        const r = await importMrpackFromPath(tmpZip, instanceName);
-        if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip);
+        const tmp = path.join(userData, `tmp-${Date.now()}.mrpack`);
+        await downloadFile(url, tmp, (done, total) => sendProgress({ kind: 'download', done, total, label: 'Downloading' }));
+        const r = await importMrpackFromPath(tmp, instanceName);
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
         return { ok: true, instanceDir: path.join(instancesDir, instanceName), customVersion: r.customVersion, icon: r.icon };
-    } catch (err) {
-        sendLog('Import error: ' + err.message, 'error');
-        return { ok: false, error: err.message };
-    }
+    } catch (err) { return { ok: false, error: err.message }; }
 });
 
-// ================= REPAIR =================
-ipcMain.handle('repair-instance', async (e, { instanceName, url }) => {
+ipcMain.handle('check-modpack-update', async (e, instanceName) => {
     try {
         const instDir = path.join(instancesDir, instanceName);
-        if (!fs.existsSync(instDir)) throw new Error('Instance not found');
-        const tmpZip = path.join(userData, `tmp-${Date.now()}.mrpack`);
-        await downloadFile(url, tmpZip);
-        const zip = new AdmZip(tmpZip);
-        const index = JSON.parse(zip.getEntry('modrinth.index.json').getData().toString('utf-8'));
-        let missing = 0;
-        for (const file of index.files) {
-            const outPath = path.join(instDir, file.path);
-            if (!fs.existsSync(outPath)) {
-                missing++;
-                fs.mkdirSync(path.dirname(outPath), { recursive: true });
-                try { await downloadFile(file.downloads[0], outPath); } catch {}
-            }
-        }
-        if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip);
-        return { ok: true, missing };
+        const meta = instMeta(instDir);
+        if (!meta || !meta.modpackProjectId) return { ok: false, error: 'Not a modpack' };
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${meta.modpackProjectId}/version`, modrinthHeaders());
+        if (!versions.length) return { ok: false, error: 'No versions' };
+        const latest = versions[0];
+        return { ok: true, latest: { id: latest.id, version: latest.version_number, name: latest.name }, hasUpdate: latest.version_number !== meta.modpackVersion, current: meta.modpackVersion };
     } catch (err) { return { ok: false, error: err.message }; }
 });
 
-// ================= MC VERSIONS =================
+ipcMain.handle('update-modpack', async (e, { instanceName, versionId }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        const meta = instMeta(instDir);
+        if (!meta) throw new Error('Not found');
+        if (loadSettings().autoBackup) await backupInstance(instanceName, 'pre-update');
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${meta.modpackProjectId}/version`, modrinthHeaders());
+        const v = versions.find(x => x.id === versionId) || versions[0];
+        const file = v.files.find(f => f.primary) || v.files[0];
+        const tmp = path.join(userData, `tmp-upd-${Date.now()}.mrpack`);
+        await downloadFile(file.url, tmp, null, modrinthHeaders());
+        const zip = new AdmZip(tmp);
+        const index = JSON.parse(zip.getEntry('modrinth.index.json').getData().toString('utf-8'));
+        fs.mkdirSync(path.join(instDir, 'mods'), { recursive: true });
+        let updated = 0;
+        for (const f of index.files) {
+            if (f.env && f.env.client === 'unsupported') continue;
+            if (!f.path.startsWith('mods/')) continue;
+            const out = path.join(instDir, f.path);
+            if (!f.downloads || !f.downloads.length) continue;
+            try { await downloadFile(f.downloads[0], out); updated++; } catch {}
+        }
+        zip.getEntries().forEach(entry => {
+            if (entry.entryName.startsWith('overrides/config') && !entry.isDirectory) {
+                const rel = entry.entryName.replace(/^overrides\//, '');
+                const out = path.join(instDir, rel);
+                fs.mkdirSync(path.dirname(out), { recursive: true });
+                fs.writeFileSync(out, entry.getData());
+            }
+        });
+        meta.modpackVersion = v.version_number;
+        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify(meta, null, 2));
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+        return { ok: true, updated, version: v.version_number };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= BACKUPS =================
+async function backupInstance(instanceName, tag = 'auto') {
+    const src = path.join(instancesDir, instanceName);
+    if (!fs.existsSync(src)) throw new Error('Not found');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    const bd = path.join(backupsDir, instanceName);
+    fs.mkdirSync(bd, { recursive: true });
+    const zp = path.join(bd, `${tag}-${ts}.zip`);
+    const zip = new AdmZip(); zip.addLocalFolder(src); zip.writeZip(zp);
+    return zp;
+}
+ipcMain.handle('backup-instance', async (e, { instanceName, tag }) => {
+    try { const p = await backupInstance(instanceName, tag || 'manual'); return { ok: true, path: p }; }
+    catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('list-backups', (e, instanceName) => {
+    const d = path.join(backupsDir, instanceName);
+    if (!fs.existsSync(d)) return [];
+    return fs.readdirSync(d).map(f => { const full = path.join(d, f); const st = fs.statSync(full); return { name: f, size: st.size, mtime: st.mtimeMs }; }).sort((a, b) => b.mtime - a.mtime);
+});
+ipcMain.handle('restore-backup', async (e, { instanceName, backupName }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        const bp = path.join(backupsDir, instanceName, backupName);
+        if (!fs.existsSync(bp)) throw new Error('Not found');
+        await backupInstance(instanceName, 'pre-restore');
+        fs.rmSync(instDir, { recursive: true, force: true });
+        fs.mkdirSync(instDir, { recursive: true });
+        new AdmZip(bp).extractAllTo(instDir, true);
+        return { ok: true };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('delete-backup', (e, { instanceName, backupName }) => {
+    const p = path.join(backupsDir, instanceName, backupName);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return { ok: true };
+});
+
+// ================= CRASH ANALYZER =================
+ipcMain.handle('analyze-crash', async (e, instanceName) => {
+    try {
+        const dir = path.join(instancesDir, instanceName, 'crash-reports');
+        if (!fs.existsSync(dir)) return { ok: true, reports: [] };
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.txt')).sort().reverse().slice(0, 5);
+        const reports = files.map(f => {
+            const content = fs.readFileSync(path.join(dir, f), 'utf-8');
+            const cm = content.match(/Caused by: ([^\n]+)/);
+            const mm = content.match(/mod (\S+) ([^\n]+)/i);
+            return { file: f, cause: cm ? cm[1] : 'Unknown', mod: mm ? `${mm[1]} ${mm[2]}` : null, preview: content.slice(0, 800) };
+        });
+        return { ok: true, reports };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('resolve-moddeps', async (e, { projectId, versionId }) => {
+    try {
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${projectId}/version`, modrinthHeaders());
+        const v = versions.find(x => x.id === versionId) || versions[0];
+        if (!v) return { ok: false, error: 'Not found' };
+        const resolved = [];
+        for (const d of (v.dependencies || [])) {
+            if (!d.project_id) continue;
+            try { const p = await fetchJSON(`https://api.modrinth.com/v2/project/${d.project_id}`, modrinthHeaders()); resolved.push({ projectId: d.project_id, title: p.title, icon: p.icon_url, type: d.dependency_type }); } catch {}
+        }
+        return { ok: true, dependencies: resolved };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= MODRINTH =================
+function modrinthHeaders() {
+    const s = loadSettings();
+    const h = { 'User-Agent': 'BetterImgLauncher/1.0.3' };
+    if (s.modrinthToken && s.modrinthToken.trim()) h['Authorization'] = s.modrinthToken.trim();
+    return h;
+}
+ipcMain.handle('modrinth-search', async (e, { query, projectType, gameVersion, loader, offset, limit }) => {
+    try {
+        const params = new URLSearchParams();
+        if (query) params.set('query', query);
+        if (offset) params.set('offset', String(offset));
+        if (limit) params.set('limit', String(limit));
+        const f = [];
+        if (projectType) f.push([`project_type:${projectType}`]);
+        if (gameVersion) f.push([`versions:${gameVersion}`]);
+        if (loader && loader !== 'vanilla') f.push([`categories:${loader}`]);
+        if (f.length) params.set('facets', JSON.stringify(f));
+        const data = await fetchJSON(`https://api.modrinth.com/v2/search?${params.toString()}`, modrinthHeaders());
+        return { ok: true, hits: data.hits, total: data.total_hits };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-install', async (e, { instanceName, projectId, projectType, gameVersion, loader }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        if (!fs.existsSync(instDir)) throw new Error('Not found');
+        const params = new URLSearchParams();
+        if (gameVersion) params.set('game_versions', JSON.stringify([gameVersion]));
+        if (loader && loader !== 'vanilla') params.set('loaders', JSON.stringify([loader]));
+        else if (projectType === 'resourcepack') params.set('loaders', JSON.stringify(['minecraft']));
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version?${params.toString()}`, modrinthHeaders());
+        if (!versions.length) throw new Error('No versions');
+        const v = versions[0]; const file = v.files.find(f => f.primary) || v.files[0];
+        let sub = 'mods';
+        if (projectType === 'resourcepack') sub = 'resourcepacks';
+        else if (projectType === 'shader') sub = 'shaderpacks';
+        const td = path.join(instDir, sub); fs.mkdirSync(td, { recursive: true });
+        await downloadFile(file.url, path.join(td, file.filename), null, modrinthHeaders());
+        return { ok: true, file: file.filename, version: v.version_number };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-get-project', async (e, id) => {
+    try { return { ok: true, project: await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(id)}`, modrinthHeaders()) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-get-full-project', async (e, id) => {
+    try {
+        const project = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(id)}`, modrinthHeaders());
+        let body = '';
+        try { const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(id)}/body`, { headers: modrinthHeaders() }); if (res.ok) body = await res.text(); } catch {}
+        return { ok: true, project, body };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-get-all-versions', async (e, id) => {
+    try { return { ok: true, versions: await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(id)}/version`, modrinthHeaders()) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-install-version', async (e, { instanceName, projectId, versionId, projectType }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
+        const v = versions.find(x => x.id === versionId) || versions[0];
+        const file = v.files.find(f => f.primary) || v.files[0];
+        let sub = 'mods';
+        if (projectType === 'resourcepack') sub = 'resourcepacks';
+        else if (projectType === 'shader') sub = 'shaderpacks';
+        const td = path.join(instDir, sub); fs.mkdirSync(td, { recursive: true });
+        await downloadFile(file.url, path.join(td, file.filename), null, modrinthHeaders());
+        return { ok: true, file: file.filename, version: v.version_number };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('modrinth-install-modpack', async (e, { projectId, versionId, instanceName }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        if (fs.existsSync(instDir)) throw new Error('Exists');
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
+        const v = versions.find(x => x.id === versionId) || versions[0];
+        const file = v.files.find(f => f.primary) || v.files[0];
+        const tmp = path.join(userData, `tmp-mp-${Date.now()}.mrpack`);
+        await downloadFile(file.url, tmp, null, modrinthHeaders());
+        const r = await importMrpackFromPath(tmp, instanceName);
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+        const mp = path.join(instDir, 'instance.json');
+        const m = JSON.parse(fs.readFileSync(mp, 'utf-8'));
+        m.modpackProjectId = projectId;
+        m.modpackVersion = v.version_number;
+        fs.writeFileSync(mp, JSON.stringify(m, null, 2));
+        return { ok: true, instanceName, customVersion: r.customVersion, icon: r.icon };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= VERSIONS =================
 ipcMain.handle('get-mc-versions', async () => {
+    try { const man = await fetchJSON('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json'); return { ok: true, latest: man.latest, versions: man.versions.filter(v => v.type === 'release').map(v => ({ id: v.id, type: v.type, releaseTime: v.releaseTime })) }; }
+    catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('get-fabric-versions', async (e, mc) => {
+    try { const d = await fetchJSON(`https://meta.fabricmc.net/v2/versions/loader/${encodeURIComponent(mc)}`); return { ok: true, versions: d.map(v => v.loader.version) }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('get-quilt-versions', async (e, mc) => {
+    try { const d = await fetchJSON(`https://meta.quiltmc.org/v3/versions/loader/${encodeURIComponent(mc)}`); return { ok: true, versions: d.map(v => v.loader.version) }; } catch (err) { return { ok: false, error: err.message }; }
+});
+ipcMain.handle('get-forge-versions', async (e, mc) => {
     try {
-        const man = await fetchJSON('https://launchermeta.mojang.com/mc/game/version_manifest_v2.json');
-        return { ok: true, latest: man.latest, versions: man.versions.filter(v => v.type === 'release').map(v => ({ id: v.id, type: v.type, releaseTime: v.releaseTime })) };
+        const d = await fetchJSON('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
+        const vs = [];
+        for (const [k, v] of Object.entries(d.promotions)) if (k.startsWith(mc + '-')) vs.push(v);
+        return { ok: true, versions: Array.from(new Set(vs)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).reverse() };
     } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('get-fabric-versions', async (e, mcVersion) => {
+ipcMain.handle('get-neoforge-versions', async (e, mc) => {
     try {
-        const data = await fetchJSON(`https://meta.fabricmc.net/v2/versions/loader/${encodeURIComponent(mcVersion)}`);
-        return { ok: true, versions: data.map(v => v.loader.version) };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('get-quilt-versions', async (e, mcVersion) => {
-    try {
-        const data = await fetchJSON(`https://meta.quiltmc.org/v3/versions/loader/${encodeURIComponent(mcVersion)}`);
-        return { ok: true, versions: data.map(v => v.loader.version) };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('get-forge-versions', async (e, mcVersion) => {
-    try {
-        const data = await fetchJSON('https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json');
-        const versions = [];
-        for (const [k, v] of Object.entries(data.promotions)) if (k.startsWith(mcVersion + '-')) versions.push(v);
-        return { ok: true, versions: Array.from(new Set(versions)).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).reverse() };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('get-neoforge-versions', async (e, mcVersion) => {
-    try {
-        const [maj, min] = mcVersion.split('.').map(Number);
+        const [maj, min] = mc.split('.').map(Number);
         const prefix = `${maj}.${min}.`;
         const xml = await (await fetch('https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml')).text();
         const all = [...xml.matchAll(/<version>([^<]+)<\/version>/g)].map(m => m[1]);
@@ -705,134 +787,54 @@ ipcMain.handle('get-neoforge-versions', async (e, mcVersion) => {
 // ================= CREATE INSTANCE =================
 ipcMain.handle('create-instance', async (e, { name, mcVersion, loader, loaderVersion }) => {
     try {
-        if (!name || !name.trim()) throw new Error('Instance name is required');
-        if (!mcVersion) throw new Error('MC version is required');
+        if (!name || !name.trim()) throw new Error('Name required');
+        if (!mcVersion) throw new Error('MC required');
         const instDir = path.join(instancesDir, name);
-        if (fs.existsSync(instDir)) throw new Error('Instance already exists');
+        if (fs.existsSync(instDir)) throw new Error('Exists');
         fs.mkdirSync(instDir, { recursive: true });
         fs.mkdirSync(path.join(instDir, 'mods'), { recursive: true });
-        const dependencies = { minecraft: mcVersion };
+        const deps = { minecraft: mcVersion };
         if (loader && loader !== 'vanilla' && loaderVersion) {
-            if (loader === 'fabric') dependencies['fabric-loader'] = loaderVersion;
-            else if (loader === 'quilt') dependencies['quilt-loader'] = loaderVersion;
-            else if (loader === 'forge') dependencies['forge'] = loaderVersion;
-            else if (loader === 'neoforge') dependencies['neoforge'] = loaderVersion;
+            if (loader === 'fabric') deps['fabric-loader'] = loaderVersion;
+            else if (loader === 'quilt') deps['quilt-loader'] = loaderVersion;
+            else if (loader === 'forge') deps['forge'] = loaderVersion;
+            else if (loader === 'neoforge') deps['neoforge'] = loaderVersion;
         }
-        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({
-            name, dependencies, importedAt: new Date().toISOString(),
-            icon: null, playTime: 0, lastPlayed: null, manual: true
-        }, null, 2));
+        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({ name, dependencies: deps, importedAt: new Date().toISOString(), icon: null, playTime: 0, lastPlayed: null, manual: true, perInstance: {} }, null, 2));
         if (loader && loader !== 'vanilla' && loaderVersion) {
             const s = loadSettings();
-            const cv = await ensureLoader({ dependencies, javaPath: s.javaPath || '/usr/bin/java', gameDir: instDir, log: m => sendLog(m, 'loader') });
+            const cv = await ensureLoader({ dependencies: deps, javaPath: s.javaPath || '/usr/bin/java', gameDir: instDir, log: m => sendLog(m, 'loader') });
             return { ok: true, customVersion: cv };
         }
         return { ok: true };
     } catch (err) { return { ok: false, error: err.message }; }
 });
 
-// ================= MODRINTH =================
-function modrinthHeaders() {
+// ================= DISCORD RPC =================
+async function initDiscordRpc() {
     const s = loadSettings();
-    const headers = { 'User-Agent': 'BetterImgLauncher/1.0.2' };
-    if (s.modrinthToken && s.modrinthToken.trim()) headers['Authorization'] = s.modrinthToken.trim();
-    return headers;
+    if (!s.discordRpc) return;
+    try {
+        const DiscordRPC = require('discord-rpc');
+        discordRpc = new DiscordRPC.Client({ transport: 'ipc' });
+        await discordRpc.login({ clientId: '1564258194958852237' });
+        discordRpc.on('ready', () => {
+            discordRpc.setActivity({ details: 'In launcher', state: 'BetterImgLauncher', startTimestamp: new Date(), largeImageKey: 'logo', largeImageText: 'BetterImgLauncher' });
+        });
+        sendLog('Discord RPC connected', 'success');
+    } catch (err) {
+        sendLog('Discord RPC failed: ' + err.message, 'warn');
+        discordRpc = null;
+    }
 }
-ipcMain.handle('modrinth-search', async (e, { query, projectType, gameVersion, loader, offset, limit }) => {
-    try {
-        const params = new URLSearchParams();
-        if (query) params.set('query', query);
-        if (offset) params.set('offset', String(offset));
-        if (limit) params.set('limit', String(limit));
-        const facets = [];
-        if (projectType) facets.push([`project_type:${projectType}`]);
-        if (gameVersion) facets.push([`versions:${gameVersion}`]);
-        if (loader && loader !== 'vanilla') facets.push([`categories:${loader}`]);
-        if (facets.length) params.set('facets', JSON.stringify(facets));
-        const data = await fetchJSON(`https://api.modrinth.com/v2/search?${params.toString()}`, modrinthHeaders());
-        return { ok: true, hits: data.hits, total: data.total_hits };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-install', async (e, { instanceName, projectId, projectType, gameVersion, loader }) => {
-    try {
-        const instDir = path.join(instancesDir, instanceName);
-        if (!fs.existsSync(instDir)) throw new Error('Instance not found');
-        const params = new URLSearchParams();
-        if (gameVersion) params.set('game_versions', JSON.stringify([gameVersion]));
-        if (loader && loader !== 'vanilla') params.set('loaders', JSON.stringify([loader]));
-        else if (projectType === 'resourcepack') params.set('loaders', JSON.stringify(['minecraft']));
-        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version?${params.toString()}`, modrinthHeaders());
-        if (!versions.length) throw new Error('No compatible versions');
-        const version = versions[0];
-        const file = version.files.find(f => f.primary) || version.files[0];
-        let subDir = 'mods';
-        if (projectType === 'resourcepack') subDir = 'resourcepacks';
-        else if (projectType === 'shader') subDir = 'shaderpacks';
-        const targetDir = path.join(instDir, subDir);
-        fs.mkdirSync(targetDir, { recursive: true });
-        const dest = path.join(targetDir, file.filename);
-        await downloadFile(file.url, dest, null, modrinthHeaders());
-        return { ok: true, file: file.filename, version: version.version_number };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-get-project', async (e, projectId) => {
-    try {
-        const data = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, modrinthHeaders());
-        return { ok: true, project: data };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-get-full-project', async (e, projectId) => {
-    try {
-        const project = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}`, modrinthHeaders());
-        let body = '';
-        try {
-            const res = await fetch(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/body`, { headers: modrinthHeaders() });
-            if (res.ok) body = await res.text();
-        } catch {}
-        return { ok: true, project, body };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-get-all-versions', async (e, projectId) => {
-    try {
-        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
-        return { ok: true, versions };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-install-version', async (e, { instanceName, projectId, versionId, projectType }) => {
-    try {
-        const instDir = path.join(instancesDir, instanceName);
-        if (!fs.existsSync(instDir)) throw new Error('Instance not found');
-        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
-        const version = versions.find(v => v.id === versionId) || versions[0];
-        if (!version) throw new Error('Version not found');
-        const file = version.files.find(f => f.primary) || version.files[0];
-        let subDir = 'mods';
-        if (projectType === 'resourcepack') subDir = 'resourcepacks';
-        else if (projectType === 'shader') subDir = 'shaderpacks';
-        const targetDir = path.join(instDir, subDir);
-        fs.mkdirSync(targetDir, { recursive: true });
-        const dest = path.join(targetDir, file.filename);
-        await downloadFile(file.url, dest, null, modrinthHeaders());
-        return { ok: true, file: file.filename, version: version.version_number };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
-ipcMain.handle('modrinth-install-modpack', async (e, { projectId, versionId, instanceName }) => {
-    try {
-        const instDir = path.join(instancesDir, instanceName);
-        if (fs.existsSync(instDir)) throw new Error('Instance already exists');
-        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(projectId)}/version`, modrinthHeaders());
-        const version = versions.find(v => v.id === versionId) || versions[0];
-        if (!version) throw new Error('Version not found');
-        const file = version.files.find(f => f.primary) || version.files[0];
-        if (!file) throw new Error('No file in version');
-        const tmpZip = path.join(userData, `tmp-mp-${Date.now()}.mrpack`);
-        sendLog(`Downloading modpack ${file.filename}...`, 'info');
-        await downloadFile(file.url, tmpZip, null, modrinthHeaders());
-        const r = await importMrpackFromPath(tmpZip, instanceName);
-        if (fs.existsSync(tmpZip)) fs.unlinkSync(tmpZip);
-        return { ok: true, instanceName, customVersion: r.customVersion, icon: r.icon };
-    } catch (err) { return { ok: false, error: err.message }; }
-});
+function updateRpcPlaying(name) {
+    if (!discordRpc) return;
+    try { discordRpc.setActivity({ details: `Playing ${name}`, state: 'Minecraft', startTimestamp: new Date(), largeImageKey: 'logo', largeImageText: 'BetterImgLauncher' }); } catch {}
+}
+function updateRpcIdle() {
+    if (!discordRpc) return;
+    try { discordRpc.setActivity({ details: 'In launcher', state: 'BetterImgLauncher', startTimestamp: new Date(), largeImageKey: 'logo', largeImageText: 'BetterImgLauncher' }); } catch {}
+}
 
 // ================= LAUNCH =================
 function runShell(cmd, cwd, env) {
@@ -848,6 +850,27 @@ function runShell(cmd, cwd, env) {
 ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extraJvmArgs, server, authlib }) => {
     try {
         if (currentGame) throw new Error('Game already running');
+
+        const instDir = path.join(instancesDir, instanceName);
+        const meta = instMeta(instDir);
+        if (!meta) throw new Error('Instance not found');
+
+        const storedSettings = loadSettings();
+
+        if (storedSettings.autoBackup) {
+            sendLog('Creating backup...', 'info');
+            try { await backupInstance(instanceName, 'auto'); } catch (err) { sendLog('Backup failed: ' + err.message, 'warn'); }
+        }
+
+        const perInstance = meta.perInstance || {};
+        const finalRam = perInstance.ram || ram || storedSettings.ram || 4096;
+        const finalJava = perInstance.javaPath || javaPath || storedSettings.javaPath || '/usr/bin/java';
+        const finalArgs = perInstance.extraJvmArgs || extraJvmArgs || storedSettings.extraJvmArgs || '';
+        const finalServer = server || meta.server || perInstance.server;
+
+        sendLog(`Using Java: ${finalJava}`, 'info');
+        sendLog(`Using RAM: ${finalRam} MB`, 'info');
+
         let userName = nickname;
         let accessToken = 'offline';
         let uuid = '00000000000000000000000000000000';
@@ -859,83 +882,73 @@ ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extr
             const active = profiles.find(p => p.active);
             if (active && active.type === 'authlib' && active.accessToken) activeAuthlib = active;
         }
-
         if (activeAuthlib && activeAuthlib.accessToken) {
             userName = activeAuthlib.name || nickname;
             accessToken = activeAuthlib.accessToken;
             uuid = activeAuthlib.uuid || uuid;
             const jar = await downloadAuthlib();
             javaAgentArg = `-javaagent:${jar}=${activeAuthlib.apiRoot}`;
-            sendLog(`Using authlib: ${activeAuthlib.apiRoot}`, 'info');
         } else if (!userName) {
             const profiles = loadProfiles();
             const active = profiles.find(p => p.active);
             userName = active ? active.name : 'Player';
         }
 
-        const instDir = path.join(instancesDir, instanceName);
-        const metaPath = path.join(instDir, 'instance.json');
-        if (!fs.existsSync(metaPath)) throw new Error('Instance not found');
-        const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
-
         if (meta.preLaunchCmd) {
-            await runShell(meta.preLaunchCmd, instDir, { INST_NAME: meta.name || instanceName, INST_ID: instanceName, INST_DIR: instDir })
-                .catch(err => sendLog('Pre-launch error: ' + err.message, 'warn'));
+            await runShell(meta.preLaunchCmd, instDir, { INST_NAME: meta.name || instanceName, INST_ID: instanceName, INST_DIR: instDir }).catch(err => sendLog('Pre-launch: ' + err.message, 'warn'));
         }
 
-        const customVersion = await ensureLoader({
-            dependencies: meta.dependencies, javaPath: javaPath || '/usr/bin/java', gameDir: instDir,
-            log: m => sendLog(m, 'loader')
-        });
+        const customVersion = await ensureLoader({ dependencies: meta.dependencies, javaPath: finalJava, gameDir: instDir, log: m => sendLog(m, 'loader') });
 
         const launcher = new Client();
         const extraJVM = [];
         if (javaAgentArg) extraJVM.push(javaAgentArg);
         if (process.platform === 'darwin') extraJVM.push('-XstartOnFirstThread', '-Djava.awt.headless=false');
-        if (extraJvmArgs) extraJVM.push(...extraJvmArgs.split(/\s+/).filter(Boolean));
+        if (finalArgs) extraJVM.push(...finalArgs.split(/\s+/).filter(Boolean));
 
         const opts = {
             authorization: { access_token: accessToken, client_token: 'offline', uuid, name: userName, user_properties: '{}', meta: { type: 'msa', demo: false } },
             root: instDir,
             version: { number: meta.dependencies.minecraft, type: 'release', custom: customVersion || undefined },
-            memory: { max: `${ram}M`, min: '1024M' },
+            memory: { max: `${finalRam}M`, min: '1024M' },
             customArgs: extraJVM,
-            javaPath: javaPath || '/usr/bin/java',
+            javaPath: finalJava,
             overrides: { detached: false }
         };
-
-        if (server) {
-            const [host, port] = server.split(':');
+        if (finalServer) {
+            const [host, port] = finalServer.split(':');
             opts.server = { host, port: port || '25565' };
         }
 
         const startedAt = Date.now();
         launcher.on('debug', m => sendLog('[debug] ' + m, 'debug'));
-        launcher.on('data', m => { const text = m.toString(); sendLog(text, text.toLowerCase().includes('error') ? 'error' : 'game'); });
+        launcher.on('data', m => { const t = m.toString(); sendLog(t, t.toLowerCase().includes('error') ? 'error' : 'game'); });
         launcher.on('progress', p => sendProgress({ kind: 'launch', done: p.task, total: p.total, label: p.type }));
         launcher.on('close', async code => {
             sendLog('Game closed, code ' + code, code === 0 ? 'success' : 'warn');
+            notify('Minecraft closed', `Code ${code}`);
             if (win && !win.isDestroyed()) win.webContents.send('game-closed', code);
             const playMs = Date.now() - startedAt;
             try {
-                const m2 = JSON.parse(fs.readFileSync(metaPath, 'utf-8'));
+                const m2 = JSON.parse(fs.readFileSync(path.join(instDir, 'instance.json'), 'utf-8'));
                 m2.playTime = (m2.playTime || 0) + playMs;
                 m2.lastPlayed = Date.now();
-                fs.writeFileSync(metaPath, JSON.stringify(m2, null, 2));
+                fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify(m2, null, 2));
             } catch {}
             const h = loadHistory();
             h.unshift({ instance: instanceName, endedAt: Date.now(), code, playMs });
             saveHistory(h);
             currentGame = null;
+            updateRpcIdle();
             if (meta.postExitCmd) {
-                runShell(meta.postExitCmd, instDir, { INST_NAME: meta.name || instanceName, INST_ID: instanceName, INST_DIR: instDir })
-                    .catch(err => sendLog('Post-exit error: ' + err.message, 'warn'));
+                runShell(meta.postExitCmd, instDir, { INST_NAME: meta.name || instanceName, INST_ID: instanceName, INST_DIR: instDir }).catch(() => {});
             }
         });
 
-        sendLog(`Launching as "${userName}"${activeAuthlib ? ' (authlib)' : ''}...`, 'info');
+        sendLog(`Launching as "${userName}"...`, 'info');
         launcher.launch(opts);
         currentGame = { launcher, instanceName, startedAt };
+        updateRpcPlaying(meta.name || instanceName);
         return { ok: true };
     } catch (err) {
         sendLog('Launch error: ' + err.message, 'error');
@@ -945,9 +958,8 @@ ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extr
 });
 
 ipcMain.handle('kill-game', () => {
-    if (!currentGame) return { ok: false, error: 'Game not running' };
-    try { currentGame.launcher.kill(); currentGame = null; return { ok: true }; }
-    catch (err) { return { ok: false, error: err.message }; }
+    if (!currentGame) return { ok: false, error: 'Not running' };
+    try { currentGame.launcher.kill(); currentGame = null; return { ok: true }; } catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.handle('is-game-running', () => !!currentGame);
 
@@ -957,3 +969,111 @@ ipcMain.handle('sys-info', () => ({
     cpus: os.cpus().length, cpuModel: os.cpus()[0]?.model,
     userData, instancesDir
 }));
+
+// ================= MOD UPDATE TRACKING =================
+ipcMain.handle('track-mod', (e, { instanceName, projectId, versionId, fileName, projectType }) => {
+    const p = path.join(instancesDir, instanceName, 'instance.json');
+    if (!fs.existsSync(p)) return { ok: false };
+    const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    if (!m.trackedMods) m.trackedMods = [];
+    m.trackedMods = m.trackedMods.filter(t => t.fileName !== fileName);
+    m.trackedMods.push({ projectId, versionId, fileName, projectType, installedAt: Date.now() });
+    fs.writeFileSync(p, JSON.stringify(m, null, 2));
+    return { ok: true };
+});
+
+ipcMain.handle('check-mod-updates', async (e, instanceName) => {
+    try {
+        const p = path.join(instancesDir, instanceName, 'instance.json');
+        if (!fs.existsSync(p)) return { ok: false, error: 'Not found' };
+        const meta = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        const tracked = meta.trackedMods || [];
+        if (!tracked.length) return { ok: true, updates: [] };
+
+        const updates = [];
+        for (const t of tracked) {
+            try {
+                const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(t.projectId)}/version`, modrinthHeaders());
+                if (!versions.length) continue;
+                const latest = versions[0];
+                if (latest.id !== t.versionId) {
+                    const file = latest.files.find(f => f.primary) || latest.files[0];
+                    updates.push({
+                        projectId: t.projectId,
+                        fileName: t.fileName,
+                        projectType: t.projectType || 'mod',
+                        currentVersion: t.versionId,
+                        latestVersion: latest.id,
+                        latestVersionNumber: latest.version_number,
+                        latestFileName: file.filename,
+                        downloadUrl: file.url
+                    });
+                }
+            } catch {}
+        }
+        return { ok: true, updates };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('apply-mod-update', async (e, { instanceName, update }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        let sub = 'mods';
+        if (update.projectType === 'resourcepack') sub = 'resourcepacks';
+        else if (update.projectType === 'shader') sub = 'shaderpacks';
+        const targetDir = path.join(instDir, sub);
+        fs.mkdirSync(targetDir, { recursive: true });
+        const oldPath = path.join(targetDir, update.fileName);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        const newPath = path.join(targetDir, update.latestFileName);
+        await downloadFile(update.downloadUrl, newPath, null, modrinthHeaders());
+        const p = path.join(instDir, 'instance.json');
+        const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        if (m.trackedMods) {
+            const idx = m.trackedMods.findIndex(t => t.fileName === update.fileName);
+            if (idx >= 0) {
+                m.trackedMods[idx].fileName = update.latestFileName;
+                m.trackedMods[idx].versionId = update.latestVersion;
+            }
+            fs.writeFileSync(p, JSON.stringify(m, null, 2));
+        }
+        return { ok: true, file: update.latestFileName };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= CHANGELOG =================
+ipcMain.handle('get-modpack-changelog', async (e, { instanceName, versionId }) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        const meta = instMeta(instDir);
+        if (!meta || !meta.modpackProjectId) return { ok: false, error: 'Not a modpack' };
+        const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${meta.modpackProjectId}/version`, modrinthHeaders());
+        const v = versions.find(x => x.id === versionId);
+        if (!v) return { ok: false, error: 'Version not found' };
+        return { ok: true, version: v.version_number, name: v.name, changelog: v.changelog || '', date: v.date_published };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= SCREENSHOTS =================
+ipcMain.handle('list-screenshots', (e, instanceName) => {
+    const dir = path.join(instancesDir, instanceName, 'screenshots');
+    if (!fs.existsSync(dir)) return [];
+    return fs.readdirSync(dir)
+        .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
+        .map(f => {
+            const full = path.join(dir, f);
+            const st = fs.statSync(full);
+            const buf = fs.readFileSync(full).toString('base64');
+            const ext = path.extname(f).slice(1).toLowerCase().replace('jpg', 'jpeg');
+            return { name: f, size: st.size, mtime: st.mtimeMs, dataUrl: `data:image/${ext};base64,${buf}` };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+});
+
+ipcMain.handle('delete-screenshot', (e, { instanceName, name }) => {
+    const p = path.join(instancesDir, instanceName, 'screenshots', name);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return { ok: true };
+});
+
+app.whenReady().then(() => { setTimeout(initDiscordRpc, 2000); });

@@ -433,3 +433,211 @@ button .ripple {
 }
 .file-editor textarea:focus { outline: 2px solid var(--primary); }
 #modDetailBody .discover-icon img { width: 100%; height: 100%; object-fit: cover; }
+/* ===== 1.0.3 ADDITIONS ===== */
+#homeWallpaper {
+    background-size: cover;
+    background-position: center;
+    transition: background-image 0.3s;
+}
+#homeWallpaper[style*="background-image"] h3 {
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+#homeWallpaper[style*="background-image"] .instance-name {
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+#homeWallpaper[style*="background-image"] .instance-loader {
+    color: rgba(255,255,255,0.85);
+}
+input[type=checkbox] {
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: '▸ '; }
+details[open] summary::before { content: '▾ '; }
+
+/* ===== SIDEBAR RESIZE ===== */
+
+.sidebar-resizer {
+    width: 4px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.15s;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+}
+.sidebar-resizer:hover,
+.sidebar-resizer.dragging {
+    background: var(--primary);
+    opacity: 0.5;
+}
+
+/* ===== TITLEBAR ===== */
+.titlebar {
+    height: 38px;
+    -webkit-app-region: drag;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px 0 80px; /* 80px — место под traffic lights macOS */
+    background: var(--surface-1);
+    border-bottom: 1px solid var(--outline-variant);
+    transition: background 0.25s;
+}
+.titlebar-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.3px;
+}
+.titlebar-actions {
+    display: flex;
+    gap: 4px;
+    -webkit-app-region: no-drag;
+}
+.titlebar-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    color: var(--on-surface);
+    border: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.titlebar-btn:hover { background: var(--surface-3); }
+.titlebar-btn .material-symbols-rounded { font-size: 16px; }
+
+/* macOS: скрываем кастомные кнопки, оставляем traffic lights */
+body.mac .titlebar-actions { display: none; }
+body.mac .titlebar { padding-left: 80px; }
+body:not(.mac) .titlebar { padding-left: 16px; }
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes skeletonPulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+/* Плавное переключение вкладок */
+.tab.active {
+    animation: fadeInUp 0.25s ease-out;
+}
+
+/* Карточки инстансов — плавное появление */
+.instance-card {
+    animation: fadeInUp 0.3s ease-out backwards;
+}
+.instance-card:nth-child(1) { animation-delay: 0.02s; }
+.instance-card:nth-child(2) { animation-delay: 0.04s; }
+.instance-card:nth-child(3) { animation-delay: 0.06s; }
+.instance-card:nth-child(4) { animation-delay: 0.08s; }
+.instance-card:nth-child(5) { animation-delay: 0.10s; }
+.instance-card:nth-child(6) { animation-delay: 0.12s; }
+
+.instance-card {
+    transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.instance-card:hover {
+    transform: translateY(-3px);
+}
+
+/* Модалки — плавный въезд */
+.modal.active .modal-content {
+    animation: slideUp 0.3s cubic-bezier(0.2, 0, 0, 1);
+}
+.modal {
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Toast — плавнее */
+.toast {
+    transition: all 0.35s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Прогресс-бар — плавный */
+.sys-bar > div {
+    transition: width 0.6s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Discover-карточки */
+.discover-card {
+    animation: fadeInUp 0.3s ease-out backwards;
+    transition: transform 0.2s, background 0.2s;
+}
+.discover-card:nth-child(1) { animation-delay: 0.02s; }
+.discover-card:nth-child(2) { animation-delay: 0.04s; }
+.discover-card:nth-child(3) { animation-delay: 0.06s; }
+.discover-card:nth-child(4) { animation-delay: 0.08s; }
+.discover-card:nth-child(5) { animation-delay: 0.10s; }
+.discover-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Skeleton-загрузка */
+.skeleton {
+    background: linear-gradient(90deg, var(--surface-3) 0%, var(--surface-4) 50%, var(--surface-3) 100%);
+    background-size: 200% 100%;
+    animation: skeletonPulse 1.5s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+/* Fade при загрузке картинок */
+.instance-icon img,
+.discover-icon img {
+    animation: fadeIn 0.3s ease-out;
+}
+
+/* Плавная смена темы */
+body, aside.rail, main, .card, .modal-content, .titlebar {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Кнопка Play — пульсация при hover */
+.play-btn:hover {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+}
+
+/* Rail-nav иконки — плавный hover */
+.rail-nav button .material-symbols-rounded {
+    transition: transform 0.2s;
+}
+.rail-nav button:hover .material-symbols-rounded {
+    transform: scale(1.1);
+}
+
+/* Progress-bar при загрузке */
+.progress-fill {
+    transition: width 0.4s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Drop-overlay — плавный fade */
+.drop-overlay {
+    animation: fadeIn 0.2s ease-out;
+}

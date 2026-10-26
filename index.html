@@ -9,7 +9,15 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body data-theme="m3-dark">
-<div class="titlebar"></div>
+
+<div class="titlebar">
+    <div class="titlebar-title">BetterImgLauncher</div>
+    <div class="titlebar-actions">
+        <button id="winMinimize" class="titlebar-btn" title="Minimize"><span class="material-symbols-rounded">remove</span></button>
+        <button id="winMaximize" class="titlebar-btn" title="Maximize"><span class="material-symbols-rounded">crop_square</span></button>
+        <button id="winClose" class="titlebar-btn" title="Close"><span class="material-symbols-rounded">close</span></button>
+    </div>
+</div>
 
 <div class="app">
     <aside class="rail">
@@ -17,7 +25,7 @@
             <div class="brand-icon"><span class="material-symbols-rounded">deployed_code</span></div>
             <div class="brand-text">
                 <div class="brand-name">BetterImg</div>
-                <div class="brand-sub">v1.0.2</div>
+                <div class="brand-sub">v1.0.3</div>
             </div>
         </div>
 
@@ -26,12 +34,13 @@
             <button data-tab="launch" data-tooltip="Library"><span class="material-symbols-rounded">grid_view</span><span class="nav-label">Library</span></button>
             <button data-tab="discover" data-tooltip="Discover"><span class="material-symbols-rounded">explore</span><span class="nav-label">Discover</span></button>
             <button data-tab="import" data-tooltip="New Instance"><span class="material-symbols-rounded">add_box</span><span class="nav-label">New Instance</span></button>
+            <button data-tab="servers" data-tooltip="Servers"><span class="material-symbols-rounded">dns</span><span class="nav-label">Servers</span></button>
             <button data-tab="files" data-tooltip="Files"><span class="material-symbols-rounded">folder</span><span class="nav-label">Files</span></button>
             <button data-tab="settings" data-tooltip="Settings"><span class="material-symbols-rounded">settings</span><span class="nav-label">Settings</span></button>
             <button data-tab="console" data-tooltip="Console"><span class="material-symbols-rounded">terminal</span><span class="nav-label">Console</span></button>
         </nav>
 
-        <div class="profile-box" id="profileBox">
+        <div class="profile-box">
             <div class="profile-row">
                 <div class="profile-avatar" id="profileAvatar">P</div>
                 <div class="profile-name" id="profileName">Player</div>
@@ -48,17 +57,19 @@
         </div>
     </aside>
 
+    <div id="sidebarResizer" class="sidebar-resizer"></div>
+
     <main>
         <section id="tab-home" class="tab active">
             <div class="tab-header"><div><h2>Welcome back</h2><p class="tab-sub">Quick launch and status</p></div></div>
             <div class="home-grid">
-                <div class="card home-main">
+                <div class="card home-main" id="homeWallpaper">
                     <h3><span class="material-symbols-rounded">history</span> Last played</h3>
-                    <div id="lastPlayedCard" class="last-played"><div class="hint">No instances yet. Create one to get started.</div></div>
+                    <div id="lastPlayedCard" class="last-played"><div class="hint">No instances yet.</div></div>
                 </div>
                 <div class="card">
                     <h3><span class="material-symbols-rounded">monitor_heart</span> System</h3>
-                    <div class="list-item"><span class="name">Java detected</span><span class="meta" id="javaCount">Checking...</span></div>
+                    <div class="list-item"><span class="name">Java detected</span><span class="meta" id="javaCount">Click detect</span></div>
                     <div class="list-item"><span class="name">Active profile</span><span class="meta" id="homeProfile">—</span></div>
                     <div class="list-item"><span class="name">Platform</span><span class="meta" id="homePlatform">—</span></div>
                 </div>
@@ -82,7 +93,7 @@
         </section>
 
         <section id="tab-discover" class="tab">
-            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth mods, modpacks, resource packs & shaders</p></div></div>
+            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth</p></div></div>
             <div class="card search-card">
                 <div class="search-row">
                     <span class="material-symbols-rounded">search</span>
@@ -134,6 +145,18 @@
             </div>
         </section>
 
+        <section id="tab-servers" class="tab">
+            <div class="tab-header"><div><h2>Servers</h2><p class="tab-sub">Saved servers for quick join</p></div></div>
+            <div class="card">
+                <div class="row-inline" style="margin-bottom:12px">
+                    <input id="newServerName" type="text" placeholder="Server name" class="mini-input" style="width:200px" />
+                    <input id="newServerIp" type="text" placeholder="play.example.com:25565" class="mini-input" style="flex:1" />
+                    <button id="addServerBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> Add</button>
+                </div>
+                <div id="serversList"></div>
+            </div>
+        </section>
+
         <section id="tab-files" class="tab">
             <div class="tab-header">
                 <div><h2>Files</h2><p class="tab-sub">Browse and edit instance files</p></div>
@@ -163,14 +186,32 @@
                     <button class="theme-tile" data-theme-value="m3-green"><div class="theme-preview m3-green-preview"></div><span>Material Green</span></button>
                     <button class="theme-tile" data-theme-value="classic"><div class="theme-preview classic-preview"></div><span>Classic</span></button>
                 </div>
+                <label style="margin-top:16px">Wallpaper for Home
+                    <div class="row-inline">
+                        <button id="pickWallpaperBtn" class="outlined-btn"><span class="material-symbols-rounded">image</span> Choose</button>
+                        <button id="clearWallpaperBtn" class="outlined-btn">Clear</button>
+                    </div>
+                </label>
             </div>
 
             <div class="card">
                 <h3><span class="material-symbols-rounded">code</span> Custom CSS</h3>
-                <label>Paste your CSS here — it overrides the current theme.
-                    <textarea id="customCss" rows="6" style="width:100%;margin-top:8px;padding:12px;background:var(--surface-3);border:none;border-radius:12px;color:var(--on-surface);font-family:monospace;font-size:12px;resize:vertical;user-select:text;"></textarea>
+                <label>Paste CSS to override theme
+                    <textarea id="customCss" rows="5" style="width:100%;margin-top:8px;padding:12px;background:var(--surface-3);border:none;border-radius:12px;color:var(--on-surface);font-family:monospace;font-size:12px;resize:vertical;user-select:text;"></textarea>
                 </label>
                 <button id="applyCustomCss" class="outlined-btn">Apply CSS</button>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">notifications</span> Notifications & Integrations</h3>
+                <label style="display:flex;align-items:center;gap:12px">
+                    <input type="checkbox" id="autoBackup" style="width:20px;height:20px" />
+                    Auto-backup before launch
+                </label>
+                <label style="display:flex;align-items:center;gap:12px">
+                    <input type="checkbox" id="discordRpc" style="width:20px;height:20px" />
+                    Discord Rich Presence
+                </label>
             </div>
 
             <div class="card">
@@ -254,6 +295,9 @@
             <button data-mtab="mods">Mods</button>
             <button data-mtab="worlds">Worlds</button>
             <button data-mtab="resourcepacks">Resource Packs</button>
+            <button data-mtab="screenshots">Screenshots</button>
+            <button data-mtab="backups">Backups</button>
+            <button data-mtab="crashes">Crashes</button>
             <button data-mtab="advanced">Advanced</button>
         </div>
         <div id="modalBody" class="modal-body"></div>
