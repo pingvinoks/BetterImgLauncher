@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
     pickWallpaper: () => ipcRenderer.invoke('pick-wallpaper'),
     getHistory: () => ipcRenderer.invoke('get-history'),
     clearHistory: () => ipcRenderer.invoke('clear-history'),
+    getStats: () => ipcRenderer.invoke('get-stats'),
     pickJava: () => ipcRenderer.invoke('pick-java'),
     findJavas: () => ipcRenderer.invoke('find-javas'),
 
@@ -14,6 +15,9 @@ contextBridge.exposeInMainWorld('api', {
     winMinimize: () => ipcRenderer.invoke('win-minimize'),
     winMaximize: () => ipcRenderer.invoke('win-maximize'),
     winClose: () => ipcRenderer.invoke('win-close'),
+
+    // Language
+    getLocale: (lang) => ipcRenderer.invoke('get-locale', lang),
 
     // Authlib
     authlibLogin: (p) => ipcRenderer.invoke('authlib-login', p),
@@ -29,9 +33,12 @@ contextBridge.exposeInMainWorld('api', {
     deleteInstance: (n) => ipcRenderer.invoke('delete-instance', n),
     copyInstance: (p) => ipcRenderer.invoke('copy-instance', p),
     exportInstance: (n) => ipcRenderer.invoke('export-instance', n),
-    exportMrpack: (n) => ipcRenderer.invoke('export-mrpack', n),
+    exportMrpack: (p) => ipcRenderer.invoke('export-mrpack', p),
     updateInstanceMeta: (p) => ipcRenderer.invoke('update-instance-meta', p),
     pickInstanceIcon: (n) => ipcRenderer.invoke('pick-instance-icon', n),
+    pickInstanceBanner: (n) => ipcRenderer.invoke('pick-instance-banner', n),
+    setInstanceTags: (p) => ipcRenderer.invoke('set-instance-tags', p),
+    getAllTags: () => ipcRenderer.invoke('get-all-tags'),
 
     // Modpack updates
     checkModpackUpdate: (n) => ipcRenderer.invoke('check-modpack-update', n),
@@ -39,6 +46,7 @@ contextBridge.exposeInMainWorld('api', {
     getModpackChangelog: (p) => ipcRenderer.invoke('get-modpack-changelog', p),
     resolveModDeps: (p) => ipcRenderer.invoke('resolve-moddeps', p),
     analyzeCrash: (n) => ipcRenderer.invoke('analyze-crash', n),
+    detectConflicts: (n) => ipcRenderer.invoke('detect-conflicts', n),
 
     // Mod update tracking
     trackMod: (p) => ipcRenderer.invoke('track-mod', p),
@@ -48,6 +56,7 @@ contextBridge.exposeInMainWorld('api', {
     // Screenshots
     listScreenshots: (n) => ipcRenderer.invoke('list-screenshots', n),
     deleteScreenshot: (p) => ipcRenderer.invoke('delete-screenshot', p),
+    uploadScreenshot: (p) => ipcRenderer.invoke('upload-screenshot', p),
 
     // Backups
     backupInstance: (p) => ipcRenderer.invoke('backup-instance', p),
@@ -97,10 +106,24 @@ contextBridge.exposeInMainWorld('api', {
     modrinthInstallVersion: (p) => ipcRenderer.invoke('modrinth-install-version', p),
     modrinthInstallModpack: (p) => ipcRenderer.invoke('modrinth-install-modpack', p),
 
+    // Themes
+    exportTheme: (p) => ipcRenderer.invoke('export-theme', p),
+    importTheme: () => ipcRenderer.invoke('import-theme'),
+    listSavedThemes: () => ipcRenderer.invoke('list-saved-themes'),
+    saveTheme: (p) => ipcRenderer.invoke('save-theme', p),
+    deleteTheme: (n) => ipcRenderer.invoke('delete-theme', n),
+
     // Launch
     launch: (p) => ipcRenderer.invoke('launch', p),
     killGame: () => ipcRenderer.invoke('kill-game'),
     isGameRunning: () => ipcRenderer.invoke('is-game-running'),
+
+    // Hotkey
+    reregisterHotkey: () => ipcRenderer.invoke('reregister-hotkey'),
+
+    // Auto-update
+    checkLauncherUpdate: () => ipcRenderer.invoke('check-launcher-update'),
+    openExternal: (url) => ipcRenderer.invoke('open-external', url),
 
     // Instances list & system
     listInstances: () => ipcRenderer.invoke('list-instances'),
@@ -113,5 +136,6 @@ contextBridge.exposeInMainWorld('api', {
     // Events
     onLog: (cb) => ipcRenderer.on('log', (_e, d) => cb(d)),
     onProgress: (cb) => ipcRenderer.on('progress', (_e, d) => cb(d)),
-    onGameClosed: (cb) => ipcRenderer.on('game-closed', (_e, c) => cb(c))
+    onGameClosed: (cb) => ipcRenderer.on('game-closed', (_e, c) => cb(c)),
+    onQuickLaunch: (cb) => ipcRenderer.on('quick-launch', () => cb())
 });

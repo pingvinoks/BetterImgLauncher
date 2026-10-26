@@ -1,6 +1,6 @@
 {
   "name": "betterimglauncher",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Better Image Modpack Launcher",
   "author": {
     "name": "krutoichervak22",
@@ -58,12 +58,13 @@
   },
   "dependencies": {
     "adm-zip": "^0.5.16",
+    "form-data": "^4.0.6",
     "minecraft-launcher-core": "^3.18.1",
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
+    "discord-rpc": "^4.0.1",
     "electron": "^31.0.0",
-    "electron-builder": "^26.18.0",
-    "discord-rpc": "^4.0.1"
+    "electron-builder": "^26.18.0"
   }
 }

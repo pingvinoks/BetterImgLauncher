@@ -12,15 +12,129 @@ let instances = [];
 let currentModalInstance = null;
 let filesCurrentInstance = '';
 let filesCurrentPath = '';
+let currentLocale = {};
+let currentLang = 'en';
+let currentLibrarySearch = '';
+let currentLibraryTag = '';
+let currentTagList = [];
+
+const DEFAULT_LOCALE = {
+    'nav.home': 'Home', 'nav.library': 'Library', 'nav.discover': 'Discover',
+    'nav.newInstance': 'New Instance', 'nav.servers': 'Servers', 'nav.files': 'Files',
+    'nav.stats': 'Stats', 'nav.settings': 'Settings', 'nav.console': 'Console',
+    'home.welcome': 'Welcome back', 'home.quickLaunch': 'Quick launch and status',
+    'home.lastPlayed': 'Last played', 'home.system': 'System',
+    'home.noInstances': 'No instances yet.', 'home.javaDetected': 'Java detected',
+    'home.activeProfile': 'Active profile', 'home.platform': 'Platform',
+    'library.title': 'Library', 'library.sub': 'Your modpack instances',
+    'library.empty': 'No instances yet', 'library.emptySub': 'Create one on the New Instance tab',
+    'library.play': 'Play', 'library.edit': 'Edit', 'library.folder': 'Folder',
+    'library.update': 'Check mod updates', 'library.search': 'Search instances...',
+    'library.allTags': 'All tags',
+    'discover.title': 'Discover', 'discover.sub': 'Browse Modrinth',
+    'discover.search': 'Search...', 'discover.searchBtn': 'Search',
+    'discover.anyMc': 'Any MC version', 'discover.anyLoader': 'Any loader',
+    'discover.selectInstance': 'Select instance', 'discover.noResults': 'No results.',
+    'discover.install': 'Install', 'discover.installing': 'Installing...',
+    'import.title': 'New Instance', 'import.sub': 'Create or import',
+    'import.fromMrpack': 'From .mrpack', 'import.manual': 'Manual',
+    'import.url': '.mrpack URL', 'import.instanceName': 'Instance name',
+    'import.download': 'Download & Install', 'import.importing': 'Importing...',
+    'import.mcVersion': 'Minecraft version', 'import.loader': 'Loader',
+    'import.loaderVersion': 'Loader version', 'import.create': 'Create Instance',
+    'import.creating': 'Creating...', 'import.selectMcFirst': 'Select MC first',
+    'servers.title': 'Servers', 'servers.sub': 'Saved servers for quick join',
+    'servers.add': 'Add', 'servers.name': 'Server name', 'servers.ip': 'play.example.com:25565',
+    'servers.empty': 'No servers yet.',
+    'files.title': 'Files', 'files.sub': 'Browse and edit instance files',
+    'files.selectInstance': 'Select instance', 'files.import': 'Import',
+    'files.newFolder': 'New Folder', 'files.empty': 'Empty folder',
+    'stats.title': 'Stats', 'stats.sub': 'Playtime and history',
+    'stats.total': 'Total playtime', 'stats.week': 'This week', 'stats.month': 'This month',
+    'stats.launches': 'Total launches', 'stats.topInstances': 'Top instances',
+    'stats.recent': 'Recent launches', 'stats.noData': 'No data yet. Play some Minecraft!',
+    'stats.hours': 'h', 'stats.minutes': 'm',
+    'settings.title': 'Settings', 'settings.sub': 'Global launcher configuration',
+    'settings.appearance': 'Appearance', 'settings.theme': 'Theme',
+    'settings.wallpaper': 'Wallpaper for Home', 'settings.choose': 'Choose',
+    'settings.clear': 'Clear', 'settings.customCss': 'Custom CSS',
+    'settings.customCssHint': 'Paste CSS to override theme', 'settings.applyCss': 'Apply CSS',
+    'settings.language': 'Language', 'settings.notifications': 'Notifications & Integrations',
+    'settings.autoBackup': 'Auto-backup before launch', 'settings.discordRpc': 'Discord Rich Presence',
+    'settings.minimizeToTray': 'Minimize to tray on launch', 'settings.quickLaunchKey': 'Quick launch hotkey',
+    'settings.accounts': 'Accounts', 'settings.addProfile': 'Add',
+    'settings.authlib': 'Authlib (Ely.by / LittleSkin)',
+    'settings.authlibApiRoot': 'API Root', 'settings.authlibUsername': 'Username',
+    'settings.authlibPassword': 'Password', 'settings.authlibLogin': 'Login',
+    'settings.performance': 'Performance', 'settings.memory': 'Memory',
+    'settings.extraJvm': 'Extra JVM arguments', 'settings.java': 'Java',
+    'settings.javaPath': 'Java path', 'settings.browse': 'Browse',
+    'settings.detectJava': 'Auto-detect Java', 'settings.modrinthApi': 'Modrinth API',
+    'settings.modrinthToken': 'Personal Access Token (optional)',
+    'settings.save': 'Save Settings', 'settings.saved': 'Settings saved',
+    'console.title': 'Console', 'console.sub': 'Launcher and game logs',
+    'console.filter': 'Filter...', 'console.clear': 'Clear',
+    'console.all': 'All', 'console.info': 'Info', 'console.success': 'Success',
+    'console.warn': 'Warn', 'console.error': 'Error', 'console.game': 'Game',
+    'modal.overview': 'Overview', 'modal.mods': 'Mods', 'modal.worlds': 'Worlds',
+    'modal.resourcepacks': 'Resource Packs', 'modal.screenshots': 'Screenshots',
+    'modal.backups': 'Backups', 'modal.crashes': 'Crashes', 'modal.advanced': 'Advanced',
+    'modal.instance': 'Instance', 'modal.size': 'Size', 'modal.playTime': 'Play time',
+    'modal.modpackVersion': 'Modpack version', 'modal.icon': 'Icon', 'modal.folder': 'Folder',
+    'modal.copy': 'Copy', 'modal.exportZip': 'Export zip', 'modal.exportMrpack': 'Export mrpack',
+    'modal.delete': 'Delete', 'modal.checkUpdate': 'Check update',
+    'modal.checkingUpdate': 'Checking...', 'modal.updateAvailable': 'Update available',
+    'modal.updateNow': 'Update now', 'modal.updating': 'Updating...',
+    'modal.upToDate': 'Already up to date ✓',
+    'mods.addMod': 'Add Mod', 'mods.checkUpdates': 'Check updates',
+    'mods.checking': 'Checking...', 'mods.noMods': 'No mods.',
+    'mods.updatesAvailable': 'update(s) available', 'mods.updateAll': 'Update all',
+    'mods.update': 'Update', 'mods.delete': 'Delete',
+    'worlds.noWorlds': 'No worlds.', 'resourcepacks.noPacks': 'No packs.',
+    'screenshots.none': 'No screenshots yet.', 'screenshots.upload': 'Upload to 0x0.st',
+    'screenshots.openFolder': 'Open folder', 'backups.create': 'Create backup',
+    'backups.restore': 'Restore', 'backups.none': 'No backups.',
+    'crashes.none': 'No crash reports. Good.', 'crashes.cause': 'Cause',
+    'crashes.mod': 'Mod', 'crashes.preview': 'Show preview',
+    'advanced.perInstance': 'Per-instance settings', 'advanced.ram': 'RAM (MB)',
+    'advanced.javaPath': 'Java path', 'advanced.extraJvm': 'Extra JVM args',
+    'advanced.defaultServer': 'Default server', 'advanced.save': 'Save',
+    'advanced.customCommands': 'Custom Commands', 'advanced.preLaunch': 'Pre-launch',
+    'advanced.postExit': 'Post-exit', 'advanced.saveCommands': 'Save Commands',
+    'advanced.tags': 'Tags', 'advanced.tagsHint': 'Comma separated',
+    'advanced.author': 'Author', 'advanced.description': 'Description',
+    'conflicts.title': 'Mod conflicts', 'conflicts.missing': 'Missing dependency',
+    'conflicts.duplicate': 'Duplicate mods', 'conflicts.install': 'Install',
+    'conflicts.none': 'No conflicts detected',
+    'toast.settingsSaved': 'Settings saved', 'toast.themeApplied': 'Theme applied',
+    'toast.cssApplied': 'CSS applied', 'toast.wallpaperSet': 'Wallpaper set',
+    'toast.wallpaperCleared': 'Wallpaper cleared', 'toast.javaSelected': 'Java selected',
+    'toast.javaPathUpdated': 'Java path updated', 'toast.profileSwitched': 'Profile switched',
+    'toast.profileAdded': 'Profile added', 'toast.profileDeleted': 'Profile deleted',
+    'toast.renamed': 'Renamed', 'toast.deleted': 'Deleted', 'toast.copied': 'Copied',
+    'toast.exported': 'Exported', 'toast.imported': 'Imported',
+    'toast.instanceCreated': 'Instance created', 'toast.instanceDeleted': 'Instance deleted',
+    'toast.serverAdded': 'Server added', 'toast.backupCreated': 'Backup created',
+    'toast.restored': 'Restored', 'toast.launching': 'Launching...',
+    'toast.gameClosed': 'Game closed', 'toast.upToDate': 'Up to date',
+    'toast.updated': 'Updated', 'toast.uploaded': 'Uploaded: copy link from clipboard',
+    'toast.noConflicts': 'No conflicts detected',
+    'common.cancel': 'Cancel', 'common.ok': 'OK', 'common.close': 'Close',
+    'common.save': 'Save', 'common.delete': 'Delete', 'common.yes': 'Yes', 'common.no': 'No'
+};
+
+function t(key) {
+    return currentLocale[key] || DEFAULT_LOCALE[key] || key;
+}
 
 // ============ TOAST ============
 function toast(msg, type = '') {
-    const t = $('toast');
-    if (!t) return;
-    t.textContent = msg;
-    t.className = 'toast show ' + type;
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.className = 'toast ' + type, 2500);
+    const el = $('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'toast show ' + type;
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.className = 'toast ' + type, 2500);
 }
 
 // ============ RIPPLE ============
@@ -46,10 +160,8 @@ function initSidebarResize() {
     const resizer = $('sidebarResizer');
     const sidebar = document.querySelector('aside.rail');
     if (!resizer || !sidebar) return;
-
     const savedWidth = localStorage.getItem('sidebarWidth');
     if (savedWidth) sidebar.style.width = savedWidth + 'px';
-
     let isDragging = false, startX = 0, startWidth = 0;
     resizer.addEventListener('mousedown', (e) => {
         isDragging = true; startX = e.clientX; startWidth = sidebar.offsetWidth;
@@ -70,10 +182,7 @@ function initSidebarResize() {
         document.body.style.userSelect = '';
         localStorage.setItem('sidebarWidth', sidebar.offsetWidth);
     });
-    resizer.addEventListener('dblclick', () => {
-        sidebar.style.width = '';
-        localStorage.removeItem('sidebarWidth');
-    });
+    resizer.addEventListener('dblclick', () => { sidebar.style.width = ''; localStorage.removeItem('sidebarWidth'); });
 }
 
 // ============ LOG ============
@@ -97,7 +206,7 @@ window.api.onLog(d => {
     renderLogs();
 });
 window.api.onGameClosed(code => {
-    toast(`Game closed (${code})`, code === 0 ? 'success' : 'error');
+    toast(`${t('toast.gameClosed')} (${code})`, code === 0 ? 'success' : 'error');
     refreshInstances();
     refreshHome();
 });
@@ -109,6 +218,25 @@ document.querySelectorAll('.log-filters .chip').forEach(c => {
     });
 });
 if ($('clearLog')) $('clearLog').addEventListener('click', () => { allLogs = []; renderLogs(); });
+
+// ============ LANGUAGE ============
+async function loadLocale(lang) {
+    currentLang = lang || 'en';
+    try {
+        const data = await window.api.getLocale(currentLang);
+        currentLocale = data || {};
+    } catch { currentLocale = {}; }
+    document.documentElement.lang = currentLang;
+    applyTranslations();
+}
+function applyTranslations() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        el.placeholder = t(el.dataset.i18nPlaceholder);
+    });
+}
 
 // ============ TABS ============
 document.querySelectorAll('aside nav button').forEach(btn => {
@@ -122,6 +250,7 @@ document.querySelectorAll('aside nav button').forEach(btn => {
         if (btn.dataset.tab === 'discover') { refreshDiscoverInstances(); populateDiscoverMcVersions(); }
         if (btn.dataset.tab === 'files') refreshFilesInstances();
         if (btn.dataset.tab === 'servers') refreshServers();
+        if (btn.dataset.tab === 'stats') renderStats();
     });
 });
 
@@ -149,7 +278,7 @@ document.querySelectorAll('.theme-tile').forEach(tile => {
         settings = settings || await window.api.getSettings();
         settings.theme = theme;
         await window.api.saveSettings(settings);
-        toast('Theme applied', 'success');
+        toast(t('toast.themeApplied'), 'success');
     });
 });
 
@@ -169,14 +298,14 @@ if ($('pickWallpaperBtn')) $('pickWallpaperBtn').addEventListener('click', async
     settings = settings || await window.api.getSettings();
     settings.wallpaper = dataUrl;
     await window.api.saveSettings(settings);
-    toast('Wallpaper set', 'success');
+    toast(t('toast.wallpaperSet'), 'success');
 });
 if ($('clearWallpaperBtn')) $('clearWallpaperBtn').addEventListener('click', async () => {
     applyWallpaper(null);
     settings = settings || await window.api.getSettings();
     settings.wallpaper = '';
     await window.api.saveSettings(settings);
-    toast('Wallpaper cleared', 'success');
+    toast(t('toast.wallpaperCleared'), 'success');
 });
 
 function applyCustomCss(css) {
@@ -190,7 +319,7 @@ if ($('applyCustomCss')) $('applyCustomCss').addEventListener('click', async () 
     settings = settings || await window.api.getSettings();
     settings.customCss = css;
     await window.api.saveSettings(settings);
-    toast('CSS applied', 'success');
+    toast(t('toast.cssApplied'), 'success');
 });
 
 // ============ SETTINGS ============
@@ -201,31 +330,51 @@ if ($('pickJava')) $('pickJava').addEventListener('click', async () => {
         settings = settings || await window.api.getSettings();
         settings.javaPath = p;
         await window.api.saveSettings(settings);
-        toast('Java path updated', 'success');
+        toast(t('toast.javaPathUpdated'), 'success');
     }
 });
 if ($('ram')) $('ram').addEventListener('input', e => { $('ramLabel').textContent = `${e.target.value} MB`; });
 document.querySelectorAll('.ram-presets .chip').forEach(b => {
     b.addEventListener('click', () => { $('ram').value = b.dataset.ram; $('ramLabel').textContent = `${b.dataset.ram} MB`; });
 });
+if ($('languageSelect')) $('languageSelect').addEventListener('change', async e => {
+    const lang = e.target.value;
+    await loadLocale(lang);
+    settings = settings || await window.api.getSettings();
+    settings.language = lang;
+    await window.api.saveSettings(settings);
+});
+if ($('quickLaunchKey')) {
+    $('quickLaunchKey').addEventListener('change', async e => {
+        settings = settings || await window.api.getSettings();
+        settings.quickLaunchKey = e.target.value;
+        await window.api.saveSettings(settings);
+        await window.api.reregisterHotkey();
+        toast('Hotkey updated', 'success');
+    });
+}
+
 if ($('saveSettings')) $('saveSettings').addEventListener('click', async () => {
     await window.api.saveSettings({
         nickname: settings?.nickname || 'Player',
         ram: parseInt($('ram').value, 10) || 4096,
-        javaPath: $('javaPath').value,
+        javaPath: $('javaPath').value || settings?.javaPath || '/usr/bin/java',
         instanceName: $('instanceName')?.value || 'BetterImageFix',
         extraJvmArgs: $('extraJvmArgs').value,
-        language: 'en',
+        language: currentLang,
         modrinthToken: $('modrinthToken')?.value || '',
         authlibApi: $('authlibApi')?.value || 'https://account.ely.by/api/authlib-injector',
         theme: document.body.getAttribute('data-theme') || 'm3-dark',
         customCss: $('customCss')?.value || '',
         wallpaper: settings?.wallpaper || '',
         autoBackup: $('autoBackup')?.checked ?? true,
-        discordRpc: $('discordRpc')?.checked ?? false
+        discordRpc: $('discordRpc')?.checked ?? false,
+        minimizeToTray: $('minimizeToTray')?.checked ?? false,
+        quickLaunchKey: $('quickLaunchKey')?.value || 'CommandOrControl+Shift+M',
+        authlibWhitelist: settings?.authlibWhitelist || []
     });
     settings = await window.api.getSettings();
-    toast('Settings saved', 'success');
+    toast(t('toast.settingsSaved'), 'success');
 });
 
 // ============ JAVA ============
@@ -250,12 +399,12 @@ if ($('detectJavaBtn')) $('detectJavaBtn').addEventListener('click', async () =>
                 settings = settings || await window.api.getSettings();
                 settings.javaPath = b.dataset.java;
                 await window.api.saveSettings(settings);
-                toast('Java selected', 'success');
+                toast(t('toast.javaSelected'), 'success');
             });
         });
     }
     $('detectJavaBtn').disabled = false;
-    $('detectJavaBtn').innerHTML = '<span class="material-symbols-rounded">search</span> Auto-detect Java';
+    $('detectJavaBtn').textContent = t('settings.detectJava');
     toast(`Found ${list.length}`, list.length ? 'success' : 'warn');
 });
 
@@ -272,13 +421,12 @@ if ($('authlibLoginBtn')) $('authlibLoginBtn').addEventListener('click', async (
         if (save.ok) {
             $('authlibStatus').textContent = `✓ ${r.name}`;
             $('authlibStatus').style.color = 'var(--success)';
-            toast('Account saved', 'success');
+            toast(t('toast.profileAdded'), 'success');
             await refreshProfiles();
         }
     } else {
         $('authlibStatus').textContent = '✗ ' + r.error;
         $('authlibStatus').style.color = 'var(--error)';
-        toast('Login failed', 'error');
     }
     $('authlibLoginBtn').disabled = false;
 });
@@ -308,40 +456,76 @@ async function refreshProfiles() {
     </div>
   `).join('');
     list.querySelectorAll('button').forEach(attachRippleTo);
-    list.querySelectorAll('[data-use]').forEach(b => b.addEventListener('click', async () => { await window.api.setActiveProfile(b.dataset.use); await refreshProfiles(); }));
+    list.querySelectorAll('[data-use]').forEach(b => b.addEventListener('click', async () => {
+        await window.api.setActiveProfile(b.dataset.use); await refreshProfiles(); toast(t('toast.profileSwitched'), 'success');
+    }));
     list.querySelectorAll('[data-rename]').forEach(b => b.addEventListener('click', async () => {
         const p = profiles.find(x => x.id === b.dataset.rename);
         const nn = prompt('New name:', p.name); if (!nn) return;
         const r = await window.api.renameProfile({ id: p.id, name: nn });
-        if (r.ok) await refreshProfiles();
+        if (r.ok) { await refreshProfiles(); toast(t('toast.renamed'), 'success'); }
     }));
     list.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
         if (profiles.length <= 1) return toast('Cannot delete last', 'error');
         if (!confirm('Delete?')) return;
-        await window.api.deleteProfile(b.dataset.del); await refreshProfiles();
+        await window.api.deleteProfile(b.dataset.del); await refreshProfiles(); toast(t('toast.profileDeleted'), 'warn');
     }));
 }
-if ($('profileSelect')) $('profileSelect').addEventListener('change', async e => { await window.api.setActiveProfile(e.target.value); await refreshProfiles(); });
+if ($('profileSelect')) $('profileSelect').addEventListener('change', async e => {
+    await window.api.setActiveProfile(e.target.value); await refreshProfiles(); toast(t('toast.profileSwitched'), 'success');
+});
 if ($('addProfileBtn')) $('addProfileBtn').addEventListener('click', async () => {
     const n = $('newProfileName').value.trim(); if (!n) return toast('Enter nickname', 'error');
     const r = await window.api.addProfile(n); if (!r.ok) return toast(r.error, 'error');
-    $('newProfileName').value = ''; await refreshProfiles();
+    $('newProfileName').value = ''; await refreshProfiles(); toast(t('toast.profileAdded'), 'success');
 });
 
 // ============ INSTANCES ============
 async function refreshInstances() {
     instances = await window.api.listInstances();
+    currentTagList = await window.api.getAllTags();
+    renderLibraryFilters();
+    renderInstanceGrid();
+    refreshHome(); refreshDiscoverInstances(); refreshFilesInstances();
+}
+function renderLibraryFilters() {
+    const sel = $('libraryTagFilter');
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">${t('library.allTags')}</option>` +
+        currentTagList.map(tag => `<option value="${tag}" ${prev === tag ? 'selected' : ''}>${tag}</option>`).join('');
+}
+function renderInstanceGrid() {
     const grid = $('instanceGrid');
     const empty = $('emptyLib');
     if (!grid) return;
-    if (instances.length === 0) { grid.innerHTML = ''; if (empty) empty.style.display = 'flex'; return; }
+    let filtered = instances;
+    if (currentLibrarySearch) {
+        const q = currentLibrarySearch.toLowerCase();
+        filtered = filtered.filter(i => (i.displayName || i.name).toLowerCase().includes(q) || (i.description || '').toLowerCase().includes(q));
+    }
+    if (currentLibraryTag) filtered = filtered.filter(i => (i.tags || []).includes(currentLibraryTag));
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '';
+        if (empty) {
+            empty.style.display = 'flex';
+            empty.innerHTML = `
+        <span class="material-symbols-rounded" style="font-size:64px">inventory_2</span>
+        <div class="empty-title">${instances.length ? 'No matches' : t('library.empty')}</div>
+        <div class="empty-sub">${instances.length ? 'Try different search/tag' : t('library.emptySub')}</div>
+      `;
+        }
+        return;
+    }
     if (empty) empty.style.display = 'none';
 
-    grid.innerHTML = instances.map(inst => {
+    grid.innerHTML = filtered.map(inst => {
         const iconSrc = inst.customIcon || inst.icon;
         const icon = iconSrc ? `<div class="instance-icon"><img src="${iconSrc}" /></div>` : `<div class="instance-icon">${(inst.displayName || inst.name)[0].toUpperCase()}</div>`;
         const sizeMB = (inst.size / 1024 / 1024).toFixed(0);
         const playMin = inst.playTime ? Math.floor(inst.playTime / 60000) : 0;
+        const tagsHtml = (inst.tags || []).map(t => `<span class="meta-badge tag-badge">#${t}</span>`).join('');
         return `<div class="instance-card" data-instance="${inst.name}">
       <div class="instance-head">${icon}<div><div class="instance-name">${inst.displayName || inst.name}</div><div class="instance-loader">${inst.loader}</div></div></div>
       <div class="instance-meta">
@@ -349,12 +533,13 @@ async function refreshInstances() {
         <span class="meta-badge">${sizeMB} MB</span>
         ${playMin ? `<span class="meta-badge">${playMin} min</span>` : ''}
         ${inst.modpackVersion ? `<span class="meta-badge">v${inst.modpackVersion}</span>` : ''}
+        ${tagsHtml}
       </div>
       <div class="instance-actions">
-        <button class="play-btn" data-play="${inst.name}">▶ Play</button>
-        <button data-check-updates="${inst.name}" data-tooltip="Check mod updates"><span class="material-symbols-rounded">update</span></button>
-        <button data-edit="${inst.name}" data-tooltip="Edit"><span class="material-symbols-rounded">edit</span></button>
-        <button data-folder="${inst.name}" data-tooltip="Folder"><span class="material-symbols-rounded">folder_open</span></button>
+        <button class="play-btn" data-play="${inst.name}">▶ ${t('library.play')}</button>
+        <button data-check-updates="${inst.name}" data-tooltip="${t('library.update')}"><span class="material-symbols-rounded">update</span></button>
+        <button data-edit="${inst.name}" data-tooltip="${t('library.edit')}"><span class="material-symbols-rounded">edit</span></button>
+        <button data-folder="${inst.name}" data-tooltip="${t('library.folder')}"><span class="material-symbols-rounded">folder_open</span></button>
       </div>
     </div>`;
     }).join('');
@@ -364,10 +549,10 @@ async function refreshInstances() {
         e.stopPropagation();
         const name = b.dataset.play;
         const s = settings || await window.api.getSettings();
-        b.disabled = true; b.textContent = 'Starting...';
+        b.disabled = true; b.textContent = '...';
         const r = await window.api.launch({ instanceName: name, nickname: null, ram: s.ram, javaPath: s.javaPath, extraJvmArgs: s.extraJvmArgs, authlib: authlibSession });
-        b.disabled = false; b.textContent = '▶ Play';
-        if (r.ok) toast('Launching...', 'success'); else toast('Error: ' + r.error, 'error');
+        b.disabled = false; b.textContent = '▶ ' + t('library.play');
+        if (r.ok) toast(t('toast.launching'), 'success'); else toast('Error: ' + r.error, 'error');
     }));
     grid.querySelectorAll('[data-check-updates]').forEach(b => b.addEventListener('click', async e => {
         e.stopPropagation();
@@ -376,23 +561,23 @@ async function refreshInstances() {
         const r = await window.api.checkModUpdates(name);
         b.disabled = false;
         if (!r.ok) return toast('Error: ' + r.error, 'error');
-        if (!r.updates.length) return toast('All mods up to date', 'success');
-        toast(`${r.updates.length} update(s) available`, 'warn');
+        if (!r.updates.length) return toast(t('toast.upToDate'), 'success');
+        toast(`${r.updates.length} ${t('mods.updatesAvailable')}`, 'warn');
         openInstanceModal(name);
         setTimeout(() => document.querySelector('.modal-tabs button[data-mtab="mods"]')?.click(), 100);
     }));
     grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); openInstanceModal(b.dataset.edit); }));
     grid.querySelectorAll('[data-folder]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); window.api.openInstanceFolder({ name: b.dataset.folder, sub: '' }); }));
-
-    refreshHome(); refreshDiscoverInstances(); refreshFilesInstances();
 }
 if ($('refreshInstances')) $('refreshInstances').addEventListener('click', refreshInstances);
 if ($('openInstances')) $('openInstances').addEventListener('click', () => window.api.openInstances());
+if ($('librarySearch')) $('librarySearch').addEventListener('input', e => { currentLibrarySearch = e.target.value; renderInstanceGrid(); });
+if ($('libraryTagFilter')) $('libraryTagFilter').addEventListener('change', e => { currentLibraryTag = e.target.value; renderInstanceGrid(); });
 
 // ============ HOME ============
 async function refreshHome() {
     if (!instances || !instances.length) {
-        if ($('lastPlayedCard')) $('lastPlayedCard').innerHTML = '<div class="hint">No instances yet.</div>';
+        if ($('lastPlayedCard')) $('lastPlayedCard').innerHTML = `<div class="hint">${t('home.noInstances')}</div>`;
         return;
     }
     const last = [...instances].filter(i => i.lastPlayed).sort((a, b) => b.lastPlayed - a.lastPlayed)[0] || instances[0];
@@ -402,13 +587,13 @@ async function refreshHome() {
         <div class="instance-icon">${(last.displayName || last.name)[0].toUpperCase()}</div>
         <div><div class="instance-name">${last.displayName || last.name}</div><div class="instance-loader">${last.loader} · MC ${last.mcVersion}</div></div>
       </div>
-      <button class="filled-btn" id="homePlayBtn">▶ Launch</button>
+      <button class="filled-btn" id="homePlayBtn">▶ ${t('library.play')}</button>
     `;
         const btn = $('homePlayBtn'); attachRippleTo(btn);
         btn?.addEventListener('click', async () => {
             const s = settings || await window.api.getSettings();
             const r = await window.api.launch({ instanceName: last.name, nickname: null, ram: s.ram, javaPath: s.javaPath, extraJvmArgs: s.extraJvmArgs, authlib: authlibSession });
-            if (r.ok) toast('Launching...', 'success'); else toast('Error: ' + r.error, 'error');
+            if (r.ok) toast(t('toast.launching'), 'success'); else toast('Error: ' + r.error, 'error');
         });
     }
     try { const info = await window.api.sysInfo(); if ($('homePlatform')) $('homePlatform').textContent = info.platform; } catch {}
@@ -418,11 +603,11 @@ async function refreshHome() {
 async function refreshServers() {
     const list = await window.api.listServers();
     const el = $('serversList'); if (!el) return;
-    if (!list.length) { el.innerHTML = '<p class="hint">No servers yet.</p>'; return; }
+    if (!list.length) { el.innerHTML = `<p class="hint">${t('servers.empty')}</p>`; return; }
     el.innerHTML = list.map(s => `
     <div class="list-item">
       <span class="name">${s.name}</span>
-      <span class="meta">${s.ip}</span>
+      <span class="meta">${s.ip}${s.authlibApi ? ` · ${s.authlibApi}` : ''}</span>
       <div class="actions"><button data-del-server="${s.id}">✕</button></div>
     </div>
   `).join('');
@@ -434,23 +619,25 @@ async function refreshServers() {
 if ($('addServerBtn')) $('addServerBtn').addEventListener('click', async () => {
     const name = $('newServerName').value.trim();
     const ip = $('newServerIp').value.trim();
+    const authlibApi = $('newServerAuthlib')?.value.trim() || null;
     if (!ip) return toast('Enter IP', 'error');
-    await window.api.addServer({ name: name || ip, ip });
+    await window.api.addServer({ name: name || ip, ip, authlibApi });
     $('newServerName').value = ''; $('newServerIp').value = '';
-    refreshServers(); toast('Server added', 'success');
+    if ($('newServerAuthlib')) $('newServerAuthlib').value = '';
+    refreshServers(); toast(t('toast.serverAdded'), 'success');
 });
 
 // ============ DISCOVER ============
 async function refreshDiscoverInstances() {
     const sel = $('discoverInstance'); if (!sel) return;
     const list = await window.api.listInstances();
-    sel.innerHTML = '<option value="">Select instance</option>' + list.map(i => `<option value="${i.name}">${i.displayName} (${i.mcVersion})</option>`).join('');
+    sel.innerHTML = `<option value="">${t('discover.selectInstance')}</option>` + list.map(i => `<option value="${i.name}">${i.displayName} (${i.mcVersion})</option>`).join('');
 }
 async function populateDiscoverMcVersions() {
     const sel = $('discoverMcVersion'); if (!sel || sel.options.length > 1) return;
     const r = await window.api.getMcVersions();
     if (!r.ok) return;
-    sel.innerHTML = '<option value="">Any MC version</option>' + r.versions.slice(0, 60).map(v => `<option value="${v.id}">${v.id}</option>`).join('');
+    sel.innerHTML = `<option value="">${t('discover.anyMc')}</option>` + r.versions.slice(0, 60).map(v => `<option value="${v.id}">${v.id}</option>`).join('');
 }
 async function runDiscoverSearch() {
     const query = $('discoverQuery')?.value.trim() || '';
@@ -470,7 +657,7 @@ async function runDiscoverSearch() {
   `).join('');
     const r = await window.api.modrinthSearch({ query, projectType: type, gameVersion: mc, loader, limit: 20, offset: 0 });
     if (!r.ok) { resultsEl.innerHTML = `<div class="hint" style="color:var(--error)">Error: ${r.error}</div>`; return; }
-    if (!r.hits?.length) { resultsEl.innerHTML = '<div class="hint">No results.</div>'; return; }
+    if (!r.hits?.length) { resultsEl.innerHTML = `<div class="hint">${t('discover.noResults')}</div>`; return; }
     resultsEl.innerHTML = r.hits.map(hit => {
         const icon = hit.icon_url ? `<img src="${hit.icon_url}" />` : '?';
         return `<div class="discover-card" data-project-id="${hit.project_id}" data-project-type="${hit.project_type}" style="cursor:pointer;">
@@ -521,7 +708,7 @@ async function openModDetail(projectId, projectType) {
       <div style="max-height:260px;overflow-y:auto;">
         ${list.map(v => `<div class="list-item">
           <span class="name">${v.version_number} <span class="meta">(${v.game_versions.join(', ')})</span></span>
-          <div class="actions"><button data-install-version="${v.id}" data-project-type="${projectType}">Install</button></div>
+          <div class="actions"><button data-install-version="${v.id}" data-project-type="${projectType}">${t('discover.install')}</button></div>
         </div>`).join('')}
       </div>`;
     }
@@ -545,29 +732,21 @@ async function openModDetail(projectId, projectType) {
     body.querySelectorAll('button').forEach(attachRippleTo);
     body.querySelectorAll('[data-install-version]').forEach(b => b.addEventListener('click', async () => {
         if (!instance) return toast('Select instance first', 'error');
-        b.disabled = true; b.textContent = 'Installing...';
+        b.disabled = true; b.textContent = t('discover.installing');
         let r;
         if (projectType === 'modpack') {
             const instName = prompt('New instance name:', p.slug || p.title);
-            if (!instName) { b.disabled = false; b.textContent = 'Install'; return; }
+            if (!instName) { b.disabled = false; b.textContent = t('discover.install'); return; }
             r = await window.api.modrinthInstallModpack({ projectId, versionId: b.dataset.installVersion, instanceName: instName });
             if (r.ok) refreshInstances();
         } else {
             r = await window.api.modrinthInstallVersion({ instanceName: instance, projectId, versionId: b.dataset.installVersion, projectType });
             if (r.ok) {
-                try {
-                    await window.api.trackMod({
-                        instanceName: instance,
-                        projectId,
-                        versionId: b.dataset.installVersion,
-                        fileName: r.file,
-                        projectType
-                    });
-                } catch {}
+                try { await window.api.trackMod({ instanceName: instance, projectId, versionId: b.dataset.installVersion, fileName: r.file, projectType }); } catch {}
             }
         }
-        b.disabled = false; b.textContent = 'Install';
-        if (r.ok) toast('Installed', 'success'); else toast('Error: ' + r.error, 'error');
+        b.disabled = false; b.textContent = t('discover.install');
+        if (r.ok) toast(t('toast.imported'), 'success'); else toast('Error: ' + r.error, 'error');
     }));
 }
 if ($('closeModDetail')) $('closeModDetail').addEventListener('click', () => $('modDetailModal').classList.remove('active'));
@@ -576,7 +755,7 @@ if ($('closeModDetail')) $('closeModDetail').addEventListener('click', () => $('
 async function refreshFilesInstances() {
     const sel = $('filesInstanceSelect'); if (!sel) return;
     const list = await window.api.listInstances();
-    sel.innerHTML = '<option value="">Select instance</option>' + list.map(i => `<option value="${i.name}">${i.displayName}</option>`).join('');
+    sel.innerHTML = `<option value="">${t('files.selectInstance')}</option>` + list.map(i => `<option value="${i.name}">${i.displayName}</option>`).join('');
     if (filesCurrentInstance) sel.value = filesCurrentInstance;
 }
 function fileIcon(n) {
@@ -596,7 +775,7 @@ async function loadFiles(path) {
     const r = await window.api.fileList({ instanceName: filesCurrentInstance, rel: path });
     const el = $('filesList'); if (!el) return;
     if (!r.ok) { el.innerHTML = `<div class="hint" style="color:var(--error)">${r.error}</div>`; return; }
-    if (!r.entries.length) { el.innerHTML = '<div class="hint" style="padding:20px">Empty</div>'; return; }
+    if (!r.entries.length) { el.innerHTML = `<div class="hint" style="padding:20px">${t('files.empty')}</div>`; return; }
     el.innerHTML = r.entries.map(en => `
     <div class="file-row" data-name="${en.name}" data-dir="${en.isDir ? '1' : '0'}">
       <span class="material-symbols-rounded">${en.isDir ? 'folder' : fileIcon(en.name)}</span>
@@ -628,14 +807,14 @@ async function loadFiles(path) {
         const nn = prompt('New name:', b.dataset.rename); if (!nn) return;
         const p = filesCurrentPath ? filesCurrentPath + '/' + b.dataset.rename : b.dataset.rename;
         const rr = await window.api.fileRename({ instanceName: filesCurrentInstance, rel: p, newName: nn });
-        if (rr.ok) loadFiles(filesCurrentPath); else toast(rr.error, 'error');
+        if (rr.ok) { toast(t('toast.renamed'), 'success'); loadFiles(filesCurrentPath); } else toast(rr.error, 'error');
     }));
     el.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', async e => {
         e.stopPropagation();
         if (!confirm(`Delete "${b.dataset.delete}"?`)) return;
         const p = filesCurrentPath ? filesCurrentPath + '/' + b.dataset.delete : b.dataset.delete;
         const rr = await window.api.fileDelete({ instanceName: filesCurrentInstance, rel: p });
-        if (rr.ok) loadFiles(filesCurrentPath); else toast(rr.error, 'error');
+        if (rr.ok) { toast(t('toast.deleted'), 'warn'); loadFiles(filesCurrentPath); } else toast(rr.error, 'error');
     }));
 }
 async function openFileEditor(relPath) {
@@ -647,7 +826,7 @@ async function openFileEditor(relPath) {
     <div class="row-inline" style="justify-content:space-between">
       <div style="font-family:monospace;font-size:13px">${relPath}</div>
       <div class="row-inline">
-        <button class="outlined-btn" id="editorSaveBtn">Save</button>
+        <button class="outlined-btn" id="editorSaveBtn">${t('common.save')}</button>
         <button class="icon-btn" id="editorCloseBtn"><span class="material-symbols-rounded">close</span></button>
       </div>
     </div>
@@ -687,6 +866,186 @@ function initFilesTab() {
     });
 }
 
+// ============ STATS ============
+async function renderStats() {
+    const container = $('statsBody');
+    if (!container) return;
+    container.innerHTML = '<div class="hint">Loading...</div>';
+    const r = await window.api.getStats();
+    if (!r.ok) { container.innerHTML = `<div class="hint" style="color:var(--error)">${r.error}</div>`; return; }
+
+    if (r.totalLaunches === 0) {
+        container.innerHTML = `<div class="hint">${t('stats.noData')}</div>`;
+        return;
+    }
+
+    const fmtTime = (ms) => {
+        const h = Math.floor(ms / 3600000);
+        const m = Math.floor((ms % 3600000) / 60000);
+        return `${h}${t('stats.hours')} ${m}${t('stats.minutes')}`;
+    };
+
+    const maxDaily = Math.max(...r.daily.map(([, ms]) => ms), 1);
+    const barsHtml = r.daily.slice(-14).map(([day, ms]) => {
+        const pct = (ms / maxDaily) * 100;
+        return `<div class="stat-bar-wrap" title="${day}: ${fmtTime(ms)}">
+      <div class="stat-bar" style="height:${Math.max(pct, 3)}%"></div>
+      <div class="stat-bar-label">${day.slice(5)}</div>
+    </div>`;
+    }).join('');
+
+    container.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">${t('stats.total')}</div>
+        <div class="stat-value">${fmtTime(r.totalMs)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">${t('stats.week')}</div>
+        <div class="stat-value">${fmtTime(r.weekMs)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">${t('stats.month')}</div>
+        <div class="stat-value">${fmtTime(r.monthMs)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">${t('stats.launches')}</div>
+        <div class="stat-value">${r.totalLaunches}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Playtime (last 14 days)</h3>
+      <div class="stat-chart">${barsHtml}</div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>${t('stats.topInstances')}</h3>
+      ${r.topInstances.map(i => `
+        <div class="list-item">
+          <span class="name">${i.name}</span>
+          <span class="meta">${fmtTime(i.ms)}</span>
+        </div>
+      `).join('')}
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>${t('stats.recent')}</h3>
+      ${r.recent.slice(0, 10).map(item => `
+        <div class="list-item">
+          <span class="name">${item.instance}</span>
+          <span class="meta">${new Date(item.endedAt).toLocaleString()} · ${fmtTime(item.playMs)} · code ${item.code}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+// ============ THEMES GALLERY ============
+async function refreshSavedThemes() {
+    const list = await window.api.listSavedThemes();
+    const el = $('savedThemesList');
+    if (!el) return;
+    if (!list.length) { el.innerHTML = '<p class="hint">No saved themes.</p>'; return; }
+    el.innerHTML = list.map(item => `
+    <div class="list-item">
+      <span class="name">${item.name}</span>
+      <div class="actions">
+        <button data-apply-theme="${item.file}">Apply</button>
+        <button data-del-theme="${item.file}">✕</button>
+      </div>
+    </div>
+  `).join('');
+    el.querySelectorAll('button').forEach(attachRippleTo);
+    el.querySelectorAll('[data-apply-theme]').forEach(b => b.addEventListener('click', async () => {
+        const theme = list.find(x => x.file === b.dataset.applyTheme);
+        if (!theme) return;
+        if (theme.theme) applyTheme(theme.theme);
+        if (theme.customCss !== undefined) applyCustomCss(theme.customCss);
+        if (theme.wallpaper !== undefined) applyWallpaper(theme.wallpaper);
+        settings = settings || await window.api.getSettings();
+        if (theme.theme) settings.theme = theme.theme;
+        if (theme.customCss !== undefined) settings.customCss = theme.customCss;
+        if (theme.wallpaper !== undefined) settings.wallpaper = theme.wallpaper;
+        await window.api.saveSettings(settings);
+        toast(t('toast.themeApplied'), 'success');
+    }));
+    el.querySelectorAll('[data-del-theme]').forEach(b => b.addEventListener('click', async () => {
+        if (!confirm('Delete theme?')) return;
+        await window.api.deleteTheme(b.dataset.delTheme);
+        refreshSavedThemes();
+    }));
+}
+if ($('saveCurrentThemeBtn')) $('saveCurrentThemeBtn').addEventListener('click', async () => {
+    const name = prompt('Theme name:');
+    if (!name) return;
+    const theme = {
+        theme: document.body.getAttribute('data-theme') || 'm3-dark',
+        customCss: $('customCss')?.value || '',
+        wallpaper: settings?.wallpaper || ''
+    };
+    await window.api.saveTheme({ name, theme });
+    toast('Theme saved', 'success');
+    refreshSavedThemes();
+});
+if ($('importThemeBtn')) $('importThemeBtn').addEventListener('click', async () => {
+    const r = await window.api.importTheme();
+    if (!r.ok) return;
+    const name = prompt('Save as:', r.theme.name || 'Imported theme');
+    if (!name) return;
+    await window.api.saveTheme({ name, theme: r.theme });
+    toast('Theme imported', 'success');
+    refreshSavedThemes();
+});
+if ($('exportThemeBtn')) $('exportThemeBtn').addEventListener('click', async () => {
+    const theme = {
+        name: 'Current theme',
+        theme: document.body.getAttribute('data-theme') || 'm3-dark',
+        customCss: $('customCss')?.value || '',
+        wallpaper: settings?.wallpaper || ''
+    };
+    const r = await window.api.exportTheme({ name: 'betterimg-theme', theme });
+    if (r.ok) toast(t('toast.exported'), 'success');
+});
+
+// ============ CONFLICTS ============
+async function checkConflicts(instanceName) {
+    const r = await window.api.detectConflicts(instanceName);
+    if (!r.ok) return toast('Error: ' + r.error, 'error');
+    if (!r.conflicts.length) return toast(t('toast.noConflicts'), 'success');
+    const body = $('modalBody');
+    body.innerHTML = `
+    <h3 style="margin-bottom:16px">${t('conflicts.title')}</h3>
+    ${r.conflicts.map(c => {
+        if (c.type === 'missing') {
+            return `<div class="list-item">
+          <span class="name">⚠ ${c.mod} → ${t('conflicts.missing')}: ${c.dependency}</span>
+          <div class="actions">
+            <button data-install-dep="${c.dependencyProjectId}" data-dep-version="${c.dependencyVersionId}">${t('conflicts.install')}</button>
+          </div>
+        </div>`;
+        }
+        if (c.type === 'duplicate') {
+            return `<div class="list-item">
+          <span class="name">⚠ ${t('conflicts.duplicate')}</span>
+          <span class="meta">${c.mods.join(', ')}</span>
+        </div>`;
+        }
+        return '';
+    }).join('')}
+  `;
+    body.querySelectorAll('button').forEach(attachRippleTo);
+    body.querySelectorAll('[data-install-dep]').forEach(b => b.addEventListener('click', async () => {
+        b.disabled = true; b.textContent = '...';
+        const r = await window.api.modrinthInstallVersion({
+            instanceName: currentModalInstance,
+            projectId: b.dataset.installDep,
+            versionId: b.dataset.depVersion,
+            projectType: 'mod'
+        });
+        b.disabled = false; b.textContent = t('conflicts.install');
+        if (r.ok) { toast(t('toast.imported'), 'success'); switchModalTab('mods'); }
+        else toast('Error: ' + r.error, 'error');
+    }));
+}
+
 // ============ NEW INSTANCE ============
 async function loadMcVersions() {
     const sel = $('mcVersionSelect'); if (!sel) return;
@@ -718,20 +1077,20 @@ if ($('createInstanceBtn')) $('createInstanceBtn').addEventListener('click', asy
     if (!n) return toast('Enter name', 'error');
     if (!mc) return toast('Select MC version', 'error');
     if (l !== 'vanilla' && !lv) return toast('Select loader version', 'error');
-    const b = $('createInstanceBtn'); b.disabled = true; b.textContent = 'Creating...';
+    const b = $('createInstanceBtn'); b.disabled = true; b.textContent = t('import.creating');
     const r = await window.api.createInstance({ name: n, mcVersion: mc, loader: l, loaderVersion: lv });
-    b.disabled = false; b.innerHTML = '<span class="material-symbols-rounded">add</span> Create Instance';
-    if (r.ok) { toast('Created', 'success'); await refreshInstances(); document.querySelector('aside nav button[data-tab="launch"]')?.click(); }
+    b.disabled = false; b.textContent = t('import.create');
+    if (r.ok) { toast(t('toast.instanceCreated'), 'success'); await refreshInstances(); document.querySelector('aside nav button[data-tab="launch"]')?.click(); }
     else toast('Error: ' + r.error, 'error');
 });
 if ($('importBtn')) $('importBtn').addEventListener('click', async () => {
     const url = $('mrpackUrl').value.trim(); const n = $('instanceName').value.trim();
     if (!url || !n) return toast('Provide URL and name', 'error');
-    const b = $('importBtn'); b.disabled = true; b.textContent = 'Importing...';
+    const b = $('importBtn'); b.disabled = true; b.textContent = t('import.importing');
     document.querySelector('aside nav button[data-tab="console"]')?.click();
     const r = await window.api.importMrpack({ url, instanceName: n });
-    b.disabled = false; b.innerHTML = '<span class="material-symbols-rounded">download</span> Download & Install';
-    if (r.ok) { toast('Imported', 'success'); await refreshInstances(); document.querySelector('aside nav button[data-tab="launch"]')?.click(); }
+    b.disabled = false; b.textContent = t('import.download');
+    if (r.ok) { toast(t('toast.imported'), 'success'); await refreshInstances(); document.querySelector('aside nav button[data-tab="launch"]')?.click(); }
     else toast('Error: ' + r.error, 'error');
 });
 
@@ -761,20 +1120,25 @@ async function switchModalTab(tab) {
         const inst = instances.find(i => i.name === name);
         const playMin = inst.playTime ? Math.floor(inst.playTime / 60000) : 0;
         body.innerHTML = `
-      <div class="list-item"><span class="name">Instance</span><span class="meta">${inst?.displayName || name}</span></div>
+      <div class="list-item"><span class="name">${t('modal.instance')}</span><span class="meta">${inst?.displayName || name}</span></div>
       <div class="list-item"><span class="name">Minecraft</span><span class="meta">${inst?.mcVersion}</span></div>
       <div class="list-item"><span class="name">Loader</span><span class="meta">${inst?.loader}</span></div>
-      <div class="list-item"><span class="name">Size</span><span class="meta">${(inst?.size / 1024 / 1024).toFixed(0)} MB</span></div>
-      <div class="list-item"><span class="name">Play time</span><span class="meta">${playMin} min</span></div>
-      ${inst?.modpackVersion ? `<div class="list-item"><span class="name">Modpack version</span><span class="meta">v${inst.modpackVersion}</span></div>` : ''}
+      <div class="list-item"><span class="name">${t('modal.size')}</span><span class="meta">${(inst?.size / 1024 / 1024).toFixed(0)} MB</span></div>
+      <div class="list-item"><span class="name">${t('modal.playTime')}</span><span class="meta">${playMin} min</span></div>
+      ${inst?.modpackVersion ? `<div class="list-item"><span class="name">${t('modal.modpackVersion')}</span><span class="meta">v${inst.modpackVersion}</span></div>` : ''}
+      ${inst?.author ? `<div class="list-item"><span class="name">${t('advanced.author')}</span><span class="meta">${inst.author}</span></div>` : ''}
+      ${inst?.description ? `<div class="list-item"><span class="name">${t('advanced.description')}</span><span class="meta">${inst.description}</span></div>` : ''}
+      ${(inst?.tags || []).length ? `<div class="list-item"><span class="name">${t('advanced.tags')}</span><span class="meta">${inst.tags.map(tg => '#' + tg).join(' ')}</span></div>` : ''}
       <div class="row-inline" style="margin-top:16px">
-        <button id="pickIconBtn" class="outlined-btn"><span class="material-symbols-rounded">image</span> Icon</button>
-        <button id="openFolderBtn" class="outlined-btn">Folder</button>
-        <button id="copyBtn" class="outlined-btn">Copy</button>
-        <button id="exportBtn" class="outlined-btn">Export zip</button>
-        <button id="exportMrpackBtn" class="outlined-btn">Export mrpack</button>
-        ${inst?.modpackProjectId ? `<button id="checkUpdateBtn" class="outlined-btn">Check update</button>` : ''}
-        <button id="deleteBtn" class="outlined-btn" style="color:var(--error);border-color:var(--error)">Delete</button>
+        <button id="pickIconBtn" class="outlined-btn"><span class="material-symbols-rounded">image</span> ${t('modal.icon')}</button>
+        <button id="pickBannerBtn" class="outlined-btn">Banner</button>
+        <button id="openFolderBtn" class="outlined-btn">${t('modal.folder')}</button>
+        <button id="copyBtn" class="outlined-btn">${t('modal.copy')}</button>
+        <button id="exportBtn" class="outlined-btn">${t('modal.exportZip')}</button>
+        <button id="exportMrpackBtn" class="outlined-btn">${t('modal.exportMrpack')}</button>
+        <button id="conflictsBtn" class="outlined-btn">Conflicts</button>
+        ${inst?.modpackProjectId ? `<button id="checkUpdateBtn" class="outlined-btn">${t('modal.checkUpdate')}</button>` : ''}
+        <button id="deleteBtn" class="outlined-btn" style="color:var(--error);border-color:var(--error)">${t('modal.delete')}</button>
       </div>
       <div id="updateInfo" style="margin-top:12px"></div>
     `;
@@ -783,43 +1147,57 @@ async function switchModalTab(tab) {
             const r = await window.api.pickInstanceIcon(name);
             if (r.ok) { toast('Icon set', 'success'); refreshInstances(); }
         });
+        $('pickBannerBtn').addEventListener('click', async () => {
+            const r = await window.api.pickInstanceBanner(name);
+            if (r.ok) { toast('Banner set', 'success'); refreshInstances(); }
+        });
         $('openFolderBtn').addEventListener('click', () => window.api.openInstanceFolder({ name, sub: '' }));
+        $('conflictsBtn').addEventListener('click', () => checkConflicts(name));
         $('deleteBtn').addEventListener('click', async () => {
             if (!confirm(`Delete "${name}"?`)) return;
             await window.api.deleteInstance(name);
-            $('instanceModal').classList.remove('active'); refreshInstances(); toast('Deleted', 'warn');
+            $('instanceModal').classList.remove('active'); refreshInstances(); toast(t('toast.instanceDeleted'), 'warn');
         });
-        $('exportBtn').addEventListener('click', async () => { const r = await window.api.exportInstance(name); if (r.ok) toast('Exported', 'success'); });
-        $('exportMrpackBtn').addEventListener('click', async () => { const r = await window.api.exportMrpack(name); if (r.ok) toast('Exported as .mrpack', 'success'); });
+        $('exportBtn').addEventListener('click', async () => { const r = await window.api.exportInstance(name); if (r.ok) toast(t('toast.exported'), 'success'); });
+        $('exportMrpackBtn').addEventListener('click', async () => {
+            const inst = instances.find(i => i.name === name);
+            const title = inst?.displayName || name;
+            const author = inst?.author || '';
+            const description = inst?.description || '';
+            const version = prompt('Version:', inst?.modpackVersion || '1.0.0');
+            const banner = inst?.modpackBanner || null;
+            const r = await window.api.exportMrpack({ name, meta: { title, author, description, version, banner } });
+            if (r.ok) toast(t('toast.exported'), 'success');
+        });
         $('copyBtn').addEventListener('click', async () => {
             const nn = prompt('New name:', name + '-copy'); if (!nn) return;
             const r = await window.api.copyInstance({ name, newName: nn, copyOptions: { mods: true, saves: true, resourcepacks: true, shaderpacks: true, screenshots: false } });
-            if (r.ok) { toast('Copied', 'success'); refreshInstances(); } else toast(r.error, 'error');
+            if (r.ok) { toast(t('toast.copied'), 'success'); refreshInstances(); } else toast(r.error, 'error');
         });
         if ($('checkUpdateBtn')) $('checkUpdateBtn').addEventListener('click', async () => {
-            $('updateInfo').innerHTML = '<div class="hint">Checking...</div>';
+            $('updateInfo').innerHTML = `<div class="hint">${t('modal.checkingUpdate')}</div>`;
             const r = await window.api.checkModpackUpdate(name);
             if (!r.ok) { $('updateInfo').innerHTML = `<div class="hint" style="color:var(--error)">${r.error}</div>`; return; }
             if (r.hasUpdate) {
                 const ch = await window.api.getModpackChangelog({ instanceName: name, versionId: r.latest.id });
-                const changelog = ch.ok ? (ch.changelog || 'No changelog provided.') : 'Could not load changelog.';
+                const changelog = ch.ok ? (ch.changelog || 'No changelog.') : '';
                 const safeLog = changelog.replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]));
                 $('updateInfo').innerHTML = `
           <div class="card" style="background:var(--primary-container);color:var(--on-primary-container)">
-            <h3 style="margin-bottom:8px"><span class="material-symbols-rounded">update</span> Update: v${r.latest.version}</h3>
+            <h3 style="margin-bottom:8px"><span class="material-symbols-rounded">update</span> ${t('modal.updateAvailable')}: v${r.latest.version}</h3>
             <div style="font-size:12px;white-space:pre-wrap;max-height:240px;overflow-y:auto;margin-bottom:12px;line-height:1.5">${safeLog}</div>
-            <button id="doUpdateBtn" class="filled-btn" style="padding:8px 16px;font-size:13px">Update now</button>
+            <button id="doUpdateBtn" class="filled-btn" style="padding:8px 16px;font-size:13px">${t('modal.updateNow')}</button>
           </div>
         `;
                 attachRippleTo($('doUpdateBtn'));
                 $('doUpdateBtn').addEventListener('click', async () => {
-                    $('doUpdateBtn').disabled = true; $('doUpdateBtn').textContent = 'Updating...';
+                    $('doUpdateBtn').disabled = true; $('doUpdateBtn').textContent = t('modal.updating');
                     const u = await window.api.updateModpack({ instanceName: name, versionId: r.latest.id });
-                    if (u.ok) { toast(`Updated to v${u.version}`, 'success'); refreshInstances(); $('instanceModal').classList.remove('active'); }
+                    if (u.ok) { toast(`Updated v${u.version}`, 'success'); refreshInstances(); $('instanceModal').classList.remove('active'); }
                     else toast('Error: ' + u.error, 'error');
                 });
             } else {
-                $('updateInfo').innerHTML = '<div class="hint">Already up to date ✓</div>';
+                $('updateInfo').innerHTML = `<div class="hint">${t('modal.upToDate')}</div>`;
             }
         });
     }
@@ -832,50 +1210,50 @@ async function switchModalTab(tab) {
         if (updates.length) {
             updatesHtml = `
         <div class="card" style="margin-bottom:16px;background:var(--primary-container);color:var(--on-primary-container)">
-          <h3 style="margin-bottom:12px"><span class="material-symbols-rounded">update</span> ${updates.length} update(s) available</h3>
+          <h3 style="margin-bottom:12px"><span class="material-symbols-rounded">update</span> ${updates.length} ${t('mods.updatesAvailable')}</h3>
           ${updates.map(u => `
             <div class="list-item" style="background:transparent">
               <span class="name">${u.fileName} → ${u.latestVersionNumber}</span>
-              <div class="actions"><button data-apply-update="${u.latestVersion}">Update</button></div>
+              <div class="actions"><button data-apply-update="${u.latestVersion}">${t('mods.update')}</button></div>
             </div>
           `).join('')}
-          <button id="updateAllBtn" class="filled-btn" style="margin-top:8px;padding:8px 16px;font-size:13px">Update all</button>
+          <button id="updateAllBtn" class="filled-btn" style="margin-top:8px;padding:8px 16px;font-size:13px">${t('mods.updateAll')}</button>
         </div>
       `;
         }
         body.innerHTML = `
       ${updatesHtml}
       <div class="row-inline" style="margin-bottom:12px">
-        <button id="addModBtn" class="filled-btn" style="padding:8px 16px;font-size:13px"><span class="material-symbols-rounded">add</span> Add Mod</button>
-        <button id="checkModUpdatesBtn" class="outlined-btn"><span class="material-symbols-rounded">update</span> Check updates</button>
+        <button id="addModBtn" class="filled-btn" style="padding:8px 16px;font-size:13px"><span class="material-symbols-rounded">add</span> ${t('mods.addMod')}</button>
+        <button id="checkModUpdatesBtn" class="outlined-btn"><span class="material-symbols-rounded">update</span> ${t('mods.checkUpdates')}</button>
       </div>
       ${mods.length ? mods.map(m => `<div class="list-item">
         <div class="toggle ${m.enabled ? 'on' : ''}" data-file="${m.file}"></div>
         <span class="name">${m.name}</span>
         <span class="meta">${(m.size / 1024).toFixed(0)} KB</span>
         <div class="actions"><button data-delete="${m.file}">✕</button></div>
-      </div>`).join('') : '<p class="hint">No mods.</p>'}
+      </div>`).join('') : `<p class="hint">${t('mods.noMods')}</p>`}
     `;
         body.querySelectorAll('button').forEach(attachRippleTo);
         if ($('checkModUpdatesBtn')) $('checkModUpdatesBtn').addEventListener('click', async () => {
-            $('checkModUpdatesBtn').disabled = true; $('checkModUpdatesBtn').textContent = 'Checking...';
+            $('checkModUpdatesBtn').disabled = true; $('checkModUpdatesBtn').textContent = t('mods.checking');
             const r = await window.api.checkModUpdates(name);
-            if (r.ok && r.updates.length) toast(`${r.updates.length} updates`, 'warn');
-            else if (r.ok) toast('Up to date', 'success');
+            if (r.ok && r.updates.length) toast(`${r.updates.length} ${t('mods.updatesAvailable')}`, 'warn');
+            else if (r.ok) toast(t('toast.upToDate'), 'success');
             switchModalTab('mods');
         });
         if ($('updateAllBtn')) $('updateAllBtn').addEventListener('click', async () => {
-            $('updateAllBtn').disabled = true; $('updateAllBtn').textContent = 'Updating...';
+            $('updateAllBtn').disabled = true; $('updateAllBtn').textContent = t('modal.updating');
             for (const u of updates) await window.api.applyModUpdate({ instanceName: name, update: u });
-            toast('All updated', 'success');
+            toast(t('toast.updated'), 'success');
             switchModalTab('mods');
         });
         body.querySelectorAll('[data-apply-update]').forEach(b => b.addEventListener('click', async () => {
             const u = updates.find(x => x.latestVersion === b.dataset.applyUpdate);
             if (!u) return;
-            b.disabled = true; b.textContent = 'Updating...';
+            b.disabled = true; b.textContent = '...';
             const r = await window.api.applyModUpdate({ instanceName: name, update: u });
-            if (r.ok) { toast('Updated', 'success'); switchModalTab('mods'); }
+            if (r.ok) { toast(t('toast.updated'), 'success'); switchModalTab('mods'); }
             else toast(r.error, 'error');
         }));
         $('addModBtn').addEventListener('click', async () => {
@@ -884,8 +1262,8 @@ async function switchModalTab(tab) {
             const r = await window.api.addMods({ instanceName: name, files });
             if (r.ok) { toast(`Added ${r.added}`, 'success'); switchModalTab('mods'); } else toast(r.error, 'error');
         });
-        body.querySelectorAll('.toggle').forEach(t => t.addEventListener('click', async () => {
-            await window.api.toggleMod({ instanceName: name, file: t.dataset.file }); switchModalTab('mods');
+        body.querySelectorAll('.toggle').forEach(tg => tg.addEventListener('click', async () => {
+            await window.api.toggleMod({ instanceName: name, file: tg.dataset.file }); switchModalTab('mods');
         }));
         body.querySelectorAll('[data-delete]').forEach(b => b.addEventListener('click', async () => {
             if (!confirm('Delete?')) return;
@@ -895,35 +1273,47 @@ async function switchModalTab(tab) {
 
     if (tab === 'worlds') {
         const worlds = await window.api.listFolder({ instanceName: name, sub: 'saves' });
-        if (!worlds.length) { body.innerHTML = '<p class="hint">No worlds.</p>'; return; }
+        if (!worlds.length) { body.innerHTML = `<p class="hint">${t('worlds.noWorlds')}</p>`; return; }
         body.innerHTML = worlds.filter(w => w.isDir).map(w => `<div class="list-item"><span class="name">${w.name}</span><span class="meta">${new Date(w.mtime).toLocaleDateString()}</span></div>`).join('');
     }
 
     if (tab === 'resourcepacks') {
         const packs = await window.api.listFolder({ instanceName: name, sub: 'resourcepacks' });
-        if (!packs.length) { body.innerHTML = '<p class="hint">No packs.</p>'; return; }
+        if (!packs.length) { body.innerHTML = `<p class="hint">${t('resourcepacks.noPacks')}</p>`; return; }
         body.innerHTML = packs.map(p => `<div class="list-item"><span class="name">${p.name}</span><span class="meta">${p.isDir ? 'folder' : (p.size / 1024).toFixed(0) + ' KB'}</span></div>`).join('');
     }
 
     if (tab === 'screenshots') {
         const shots = await window.api.listScreenshots(name);
-        if (!shots.length) { body.innerHTML = '<p class="hint">No screenshots yet.</p>'; return; }
+        if (!shots.length) { body.innerHTML = `<p class="hint">${t('screenshots.none')}</p>`; return; }
         body.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;">
         ${shots.map(s => `
           <div class="card" style="padding:8px;position:relative">
             <img src="${s.dataUrl}" style="width:100%;border-radius:8px;display:block" />
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;font-size:11px;color:var(--on-surface-variant)">
-              <span title="${s.name}">${s.name.slice(0, 24)}</span>
-              <button data-del-shot="${s.name}" class="icon-btn" style="width:24px;height:24px"><span class="material-symbols-rounded" style="font-size:16px">delete</span></button>
+              <span title="${s.name}">${s.name.slice(0, 20)}</span>
+              <div class="row-inline">
+                <button data-upload-shot="${s.name}" class="icon-btn" style="width:24px;height:24px" title="${t('screenshots.upload')}"><span class="material-symbols-rounded" style="font-size:16px">upload</span></button>
+                <button data-del-shot="${s.name}" class="icon-btn" style="width:24px;height:24px"><span class="material-symbols-rounded" style="font-size:16px">delete</span></button>
+              </div>
             </div>
           </div>
         `).join('')}
       </div>
-      <button id="openScreenshotsFolder" class="outlined-btn" style="margin-top:12px">Open folder</button>
+      <button id="openScreenshotsFolder" class="outlined-btn" style="margin-top:12px">${t('screenshots.openFolder')}</button>
     `;
         body.querySelectorAll('button').forEach(attachRippleTo);
         $('openScreenshotsFolder').addEventListener('click', () => window.api.openInstanceFolder({ name, sub: 'screenshots' }));
+        body.querySelectorAll('[data-upload-shot]').forEach(b => b.addEventListener('click', async () => {
+            b.disabled = true;
+            const r = await window.api.uploadScreenshot({ instanceName: name, name: b.dataset.uploadShot });
+            b.disabled = false;
+            if (r.ok) {
+                navigator.clipboard.writeText(r.url).catch(() => {});
+                toast(t('toast.uploaded') + ': ' + r.url, 'success');
+            } else toast('Error: ' + r.error, 'error');
+        }));
         body.querySelectorAll('[data-del-shot]').forEach(b => b.addEventListener('click', async () => {
             if (!confirm('Delete screenshot?')) return;
             await window.api.deleteScreenshot({ instanceName: name, name: b.dataset.delShot });
@@ -935,23 +1325,23 @@ async function switchModalTab(tab) {
         const backups = await window.api.listBackups(name);
         body.innerHTML = `
       <div class="row-inline" style="margin-bottom:12px">
-        <button id="makeBackupBtn" class="filled-btn" style="padding:8px 16px;font-size:13px"><span class="material-symbols-rounded">archive</span> Create backup</button>
+        <button id="makeBackupBtn" class="filled-btn" style="padding:8px 16px;font-size:13px"><span class="material-symbols-rounded">archive</span> ${t('backups.create')}</button>
       </div>
       ${backups.length ? backups.map(b => `<div class="list-item">
         <span class="name">${b.name}</span>
         <span class="meta">${(b.size / 1024 / 1024).toFixed(1)} MB</span>
-        <div class="actions"><button data-restore="${b.name}">Restore</button><button data-del-backup="${b.name}">✕</button></div>
-      </div>`).join('') : '<p class="hint">No backups.</p>'}
+        <div class="actions"><button data-restore="${b.name}">${t('backups.restore')}</button><button data-del-backup="${b.name}">✕</button></div>
+      </div>`).join('') : `<p class="hint">${t('backups.none')}</p>`}
     `;
         body.querySelectorAll('button').forEach(attachRippleTo);
         $('makeBackupBtn').addEventListener('click', async () => {
             const r = await window.api.backupInstance({ instanceName: name, tag: 'manual' });
-            if (r.ok) { toast('Backup created', 'success'); switchModalTab('backups'); } else toast(r.error, 'error');
+            if (r.ok) { toast(t('toast.backupCreated'), 'success'); switchModalTab('backups'); } else toast(r.error, 'error');
         });
         body.querySelectorAll('[data-restore]').forEach(b => b.addEventListener('click', async () => {
             if (!confirm('Restore?')) return;
             const r = await window.api.restoreBackup({ instanceName: name, backupName: b.dataset.restore });
-            if (r.ok) { toast('Restored', 'success'); refreshInstances(); } else toast(r.error, 'error');
+            if (r.ok) { toast(t('toast.restored'), 'success'); refreshInstances(); } else toast(r.error, 'error');
         }));
         body.querySelectorAll('[data-del-backup]').forEach(b => b.addEventListener('click', async () => {
             if (!confirm('Delete backup?')) return;
@@ -963,13 +1353,13 @@ async function switchModalTab(tab) {
     if (tab === 'crashes') {
         const r = await window.api.analyzeCrash(name);
         if (!r.ok) { body.innerHTML = `<div class="hint" style="color:var(--error)">${r.error}</div>`; return; }
-        if (!r.reports.length) { body.innerHTML = '<p class="hint">No crash reports. Good.</p>'; return; }
+        if (!r.reports.length) { body.innerHTML = `<p class="hint">${t('crashes.none')}</p>`; return; }
         body.innerHTML = r.reports.map(rep => `
       <div class="card" style="margin-bottom:12px">
         <div style="font-weight:500;margin-bottom:6px">${rep.file}</div>
-        <div class="list-item" style="margin-bottom:6px"><span class="name">Cause</span><span class="meta" style="color:var(--error)">${rep.cause}</span></div>
-        ${rep.mod ? `<div class="list-item" style="margin-bottom:6px"><span class="name">Mod</span><span class="meta">${rep.mod}</span></div>` : ''}
-        <details><summary style="cursor:pointer;font-size:12px;color:var(--primary)">Show preview</summary>
+        <div class="list-item" style="margin-bottom:6px"><span class="name">${t('crashes.cause')}</span><span class="meta" style="color:var(--error)">${rep.cause}</span></div>
+        ${rep.mod ? `<div class="list-item" style="margin-bottom:6px"><span class="name">${t('crashes.mod')}</span><span class="meta">${rep.mod}</span></div>` : ''}
+        <details><summary style="cursor:pointer;font-size:12px;color:var(--primary)">${t('crashes.preview')}</summary>
         <pre style="margin-top:8px;font-size:11px;white-space:pre-wrap;background:var(--surface-3);padding:8px;border-radius:8px;max-height:200px;overflow-y:auto">${rep.preview.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</pre>
         </details>
       </div>
@@ -980,18 +1370,21 @@ async function switchModalTab(tab) {
         const inst = instances.find(i => i.name === name);
         body.innerHTML = `
       <div class="card" style="margin-bottom:16px">
-        <h3>Per-instance settings</h3>
-        <label>RAM (MB) <input id="piRam" type="number" min="1024" step="512" value="${inst?.perInstance?.ram || ''}" placeholder="Use global" /></label>
-        <label>Java path <input id="piJava" type="text" value="${inst?.perInstance?.javaPath || ''}" placeholder="Use global" /></label>
-        <label>Extra JVM args <input id="piArgs" type="text" value="${inst?.perInstance?.extraJvmArgs || ''}" placeholder="Use global" /></label>
-        <label>Default server <input id="piServer" type="text" value="${inst?.perInstance?.server || ''}" placeholder="play.example.com:25565" /></label>
-        <button id="savePiBtn" class="outlined-btn">Save</button>
+        <h3>${t('advanced.perInstance')}</h3>
+        <label>${t('advanced.ram')} <input id="piRam" type="number" min="1024" step="512" value="${inst?.perInstance?.ram || ''}" placeholder="Use global" /></label>
+        <label>${t('advanced.javaPath')} <input id="piJava" type="text" value="${inst?.perInstance?.javaPath || ''}" placeholder="Use global" /></label>
+        <label>${t('advanced.extraJvm')} <input id="piArgs" type="text" value="${inst?.perInstance?.extraJvmArgs || ''}" placeholder="Use global" /></label>
+        <label>${t('advanced.defaultServer')} <input id="piServer" type="text" value="${inst?.perInstance?.server || ''}" placeholder="play.example.com:25565" /></label>
+        <label>${t('advanced.tags')} <input id="piTags" type="text" value="${(inst?.tags || []).join(', ')}" placeholder="${t('advanced.tagsHint')}" /></label>
+        <label>${t('advanced.author')} <input id="piAuthor" type="text" value="${inst?.author || ''}" /></label>
+        <label>${t('advanced.description')} <input id="piDesc" type="text" value="${inst?.description || ''}" /></label>
+        <button id="savePiBtn" class="outlined-btn">${t('advanced.save')}</button>
       </div>
       <div class="card">
-        <h3>Custom Commands</h3>
-        <label>Pre-launch <input id="preLaunchCmd" type="text" placeholder="./prelaunch.sh" /></label>
-        <label>Post-exit <input id="postExitCmd" type="text" placeholder="./postexit.sh" /></label>
-        <button id="saveCommands" class="outlined-btn">Save Commands</button>
+        <h3>${t('advanced.customCommands')}</h3>
+        <label>${t('advanced.preLaunch')} <input id="preLaunchCmd" type="text" placeholder="./prelaunch.sh" /></label>
+        <label>${t('advanced.postExit')} <input id="postExitCmd" type="text" placeholder="./postexit.sh" /></label>
+        <button id="saveCommands" class="outlined-btn">${t('advanced.saveCommands')}</button>
       </div>
     `;
         body.querySelectorAll('button').forEach(attachRippleTo);
@@ -1001,12 +1394,21 @@ async function switchModalTab(tab) {
             if ($('piJava').value) perInstance.javaPath = $('piJava').value;
             if ($('piArgs').value) perInstance.extraJvmArgs = $('piArgs').value;
             if ($('piServer').value) perInstance.server = $('piServer').value;
-            await window.api.updateInstanceMeta({ name, patch: { perInstance } });
-            toast('Saved', 'success'); refreshInstances();
+            const tags = ($('piTags').value || '').split(',').map(x => x.trim()).filter(Boolean);
+            await window.api.updateInstanceMeta({
+                name,
+                patch: {
+                    perInstance,
+                    tags,
+                    author: $('piAuthor').value || '',
+                    description: $('piDesc').value || ''
+                }
+            });
+            toast(t('toast.settingsSaved'), 'success'); refreshInstances();
         });
         $('saveCommands').addEventListener('click', async () => {
             await window.api.updateInstanceMeta({ name, patch: { preLaunchCmd: $('preLaunchCmd').value || undefined, postExitCmd: $('postExitCmd').value || undefined } });
-            toast('Commands saved', 'success');
+            toast(t('toast.settingsSaved'), 'success');
         });
     }
 }
@@ -1022,6 +1424,32 @@ async function updateSys() {
         if ($('javaCount')) $('javaCount').textContent = cachedJavas.length ? cachedJavas.length + ' found' : 'Click detect';
     } catch {}
 }
+
+// ============ AUTO-UPDATE ============
+async function checkLauncherUpdate() {
+    const r = await window.api.checkLauncherUpdate();
+    if (!r.ok || !r.hasUpdate) return;
+    const banner = document.createElement('div');
+    banner.className = 'update-banner';
+    banner.innerHTML = `
+    <span class="material-symbols-rounded">download</span>
+    <span>Update available: v${r.latest} (you have v${r.current})</span>
+    <button class="filled-btn" style="padding:6px 14px;font-size:12px" onclick="window.api.openExternal('${r.url}')">Download</button>
+    <button class="icon-btn" onclick="this.parentElement.remove()"><span class="material-symbols-rounded">close</span></button>
+  `;
+    document.body.appendChild(banner);
+    attachRippleTo(banner.querySelector('.filled-btn'));
+    attachRippleTo(banner.querySelector('.icon-btn'));
+}
+
+// ============ QUICK LAUNCH ============
+window.api.onQuickLaunch(async () => {
+    if (!instances.length) return toast('No instances', 'error');
+    const last = [...instances].filter(i => i.lastPlayed).sort((a, b) => b.lastPlayed - a.lastPlayed)[0] || instances[0];
+    const s = settings || await window.api.getSettings();
+    await window.api.launch({ instanceName: last.name, nickname: null, ram: s.ram, javaPath: s.javaPath, extraJvmArgs: s.extraJvmArgs, authlib: authlibSession });
+    toast(t('toast.launching'), 'success');
+});
 
 // ============ DRAG & DROP ============
 let dragCounter = 0;
@@ -1040,9 +1468,18 @@ window.addEventListener('drop', async e => {
     if (r.ok) { toast(`Added ${r.added}`, 'success'); switchModalTab('mods'); }
 });
 
+// ============ WINDOW CONTROLS ============
+if ($('winMinimize')) $('winMinimize').addEventListener('click', () => window.api.winMinimize());
+if ($('winMaximize')) $('winMaximize').addEventListener('click', () => window.api.winMaximize());
+if ($('winClose')) $('winClose').addEventListener('click', () => window.api.winClose());
+
 // ============ INIT ============
 (async () => {
+    if (navigator.platform.toLowerCase().includes('mac')) document.body.classList.add('mac');
+
     settings = await window.api.getSettings();
+    await loadLocale(settings.language || 'en');
+
     applyTheme(settings.theme || 'm3-dark');
     applyCustomCss(settings.customCss || '');
     applyWallpaper(settings.wallpaper || '');
@@ -1055,6 +1492,9 @@ window.addEventListener('drop', async e => {
     if ($('authlibApi')) $('authlibApi').value = settings.authlibApi || 'https://account.ely.by/api/authlib-injector';
     if ($('autoBackup')) $('autoBackup').checked = settings.autoBackup !== false;
     if ($('discordRpc')) $('discordRpc').checked = !!settings.discordRpc;
+    if ($('minimizeToTray')) $('minimizeToTray').checked = !!settings.minimizeToTray;
+    if ($('quickLaunchKey')) $('quickLaunchKey').value = settings.quickLaunchKey || 'CommandOrControl+Shift+M';
+    if ($('languageSelect')) $('languageSelect').value = settings.language || 'en';
 
     attachRipple();
     initSidebarResize();
@@ -1066,12 +1506,10 @@ window.addEventListener('drop', async e => {
     await populateDiscoverMcVersions();
     await refreshFilesInstances();
     await refreshServers();
+    await refreshSavedThemes();
 
     updateSys();
     setInterval(updateSys, 3000);
 
-    // ============ WINDOW CONTROLS ============
-    if ($('winMinimize')) $('winMinimize').addEventListener('click', () => window.api.winMinimize());
-    if ($('winMaximize')) $('winMaximize').addEventListener('click', () => window.api.winMaximize());
-    if ($('winClose')) $('winClose').addEventListener('click', () => window.api.winClose());
+    setTimeout(checkLauncherUpdate, 3000);
 })();

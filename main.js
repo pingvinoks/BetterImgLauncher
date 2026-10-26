@@ -1,10 +1,11 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Tray, Menu, nativeImage, Notification, globalShortcut } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { execSync, execFile, exec } = require('child_process');
 const AdmZip = require('adm-zip');
 const fetch = require('node-fetch');
+const crypto = require('crypto');
 const { Client } = require('minecraft-launcher-core');
 const { ensureLoader } = require('./loader/install');
 
@@ -16,13 +17,16 @@ const profilesFile = path.join(userData, 'profiles.json');
 const authlibDir = path.join(userData, 'authlib');
 const backupsDir = path.join(userData, 'backups');
 const serversFile = path.join(userData, 'servers.json');
+const themesDir = path.join(userData, 'themes');
+const localeDir = path.join(__dirname, 'locales');
 
-[instancesDir, authlibDir, backupsDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
+[instancesDir, authlibDir, backupsDir, themesDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true }); });
 
 let win;
 let tray;
 let currentGame = null;
 let discordRpc = null;
+let globalHotkey = null;
 
 function createWindow() {
     win = new BrowserWindow({
@@ -37,21 +41,27 @@ function createWindow() {
     win.loadFile('index.html');
     win.setMenuBarVisibility(false);
 
-    if (process.platform === 'darwin') {
-        try {
-            const iconPath = path.join(__dirname, 'icon.png');
-            const img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
-            tray = new Tray(img);
-            tray.setToolTip('BetterImgLauncher');
-            tray.setContextMenu(Menu.buildFromTemplate([
-                { label: 'Show', click: () => win.show() },
-                { label: 'Quit', click: () => app.quit() }
-            ]));
-        } catch {}
-    }
+    try {
+        const iconPath = path.join(__dirname, 'icon.png');
+        const img = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : nativeImage.createEmpty();
+        tray = new Tray(img);
+        tray.setToolTip('BetterImgLauncher');
+        const ctx = Menu.buildFromTemplate([
+            { label: 'Show', click: () => win.show() },
+            { label: 'Launch last instance', click: () => { win.show(); win.webContents.send('quick-launch'); } },
+            { type: 'separator' },
+            { label: 'Quit', click: () => app.quit() }
+        ]);
+        tray.setContextMenu(ctx);
+        tray.on('click', () => win.show());
+    } catch {}
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+    createWindow();
+    setTimeout(initDiscordRpc, 2000);
+    setTimeout(registerGlobalHotkey, 3000);
+});
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 
@@ -61,10 +71,7 @@ function notify(title, body) { try { new Notification({ title, body }).show(); }
 
 // ================= WINDOW CONTROLS =================
 ipcMain.handle('win-minimize', () => { if (win) win.minimize(); });
-ipcMain.handle('win-maximize', () => {
-    if (!win) return;
-    if (win.isMaximized()) win.unmaximize(); else win.maximize();
-});
+ipcMain.handle('win-maximize', () => { if (!win) return; if (win.isMaximized()) win.unmaximize(); else win.maximize(); });
 ipcMain.handle('win-close', () => { if (win) win.close(); });
 
 // ================= SETTINGS =================
@@ -74,7 +81,8 @@ function loadSettings() {
             nickname: 'Player', ram: 4096, javaPath: '/usr/bin/java',
             instanceName: 'BetterImageFix', extraJvmArgs: '', language: 'en',
             modrinthToken: '', authlibApi: 'https://account.ely.by/api/authlib-injector',
-            theme: 'm3-dark', customCss: '', wallpaper: '', autoBackup: true, discordRpc: false
+            theme: 'm3-dark', customCss: '', wallpaper: '', autoBackup: true, discordRpc: false,
+            minimizeToTray: false, quickLaunchKey: 'CommandOrControl+Shift+M', authlibWhitelist: []
         };
         fs.writeFileSync(settingsFile, JSON.stringify(def, null, 2));
         return def;
@@ -85,6 +93,9 @@ function loadSettings() {
     if (s.wallpaper === undefined) s.wallpaper = '';
     if (s.autoBackup === undefined) s.autoBackup = true;
     if (s.discordRpc === undefined) s.discordRpc = false;
+    if (s.minimizeToTray === undefined) s.minimizeToTray = false;
+    if (!s.quickLaunchKey) s.quickLaunchKey = 'CommandOrControl+Shift+M';
+    if (!s.authlibWhitelist) s.authlibWhitelist = [];
     return s;
 }
 ipcMain.handle('get-settings', () => loadSettings());
@@ -98,6 +109,13 @@ ipcMain.handle('pick-wallpaper', async () => {
     return `data:image/${ext};base64,${data}`;
 });
 
+// ================= LANGUAGE =================
+ipcMain.handle('get-locale', (e, lang) => {
+    const file = path.join(localeDir, `${lang || 'en'}.json`);
+    if (!fs.existsSync(file)) return {};
+    try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch { return {}; }
+});
+
 // ================= SERVERS =================
 function loadServers() {
     if (!fs.existsSync(serversFile)) { fs.writeFileSync(serversFile, '[]'); return []; }
@@ -105,10 +123,10 @@ function loadServers() {
 }
 function saveServers(s) { fs.writeFileSync(serversFile, JSON.stringify(s, null, 2)); }
 ipcMain.handle('list-servers', () => loadServers());
-ipcMain.handle('add-server', (e, { name, ip }) => {
+ipcMain.handle('add-server', (e, { name, ip, authlibApi }) => {
     const list = loadServers();
     const id = 's-' + Date.now();
-    list.push({ id, name: name || ip, ip, addedAt: Date.now() });
+    list.push({ id, name: name || ip, ip, authlibApi: authlibApi || null, addedAt: Date.now() });
     saveServers(list);
     return { ok: true, id };
 });
@@ -116,9 +134,42 @@ ipcMain.handle('delete-server', (e, id) => { saveServers(loadServers().filter(s 
 
 // ================= HISTORY =================
 function loadHistory() { if (!fs.existsSync(historyFile)) return []; try { return JSON.parse(fs.readFileSync(historyFile, 'utf-8')); } catch { return []; } }
-function saveHistory(h) { fs.writeFileSync(historyFile, JSON.stringify(h.slice(0, 100), null, 2)); }
+function saveHistory(h) { fs.writeFileSync(historyFile, JSON.stringify(h.slice(0, 500), null, 2)); }
 ipcMain.handle('get-history', () => loadHistory());
 ipcMain.handle('clear-history', () => { saveHistory([]); return true; });
+
+ipcMain.handle('get-stats', () => {
+    const h = loadHistory();
+    const now = Date.now();
+    const week = 7 * 24 * 60 * 60 * 1000;
+    const month = 30 * 24 * 60 * 60 * 1000;
+
+    const daily = {};
+    const weekly = {};
+    const byInstance = {};
+
+    for (const item of h) {
+        const day = new Date(item.endedAt).toISOString().slice(0, 10);
+        daily[day] = (daily[day] || 0) + item.playMs;
+        const weekNum = Math.floor((now - item.endedAt) / week);
+        weekly[weekNum] = (weekly[weekNum] || 0) + item.playMs;
+        byInstance[item.instance] = (byInstance[item.instance] || 0) + item.playMs;
+    }
+
+    const topInstances = Object.entries(byInstance).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, ms]) => ({ name, ms }));
+    const totalMs = h.reduce((sum, item) => sum + item.playMs, 0);
+    const totalLaunches = h.length;
+    const weekMs = h.filter(item => now - item.endedAt < week).reduce((s, i) => s + i.playMs, 0);
+    const monthMs = h.filter(item => now - item.endedAt < month).reduce((s, i) => s + i.playMs, 0);
+
+    return {
+        ok: true,
+        totalMs, totalLaunches, weekMs, monthMs,
+        daily: Object.entries(daily).sort(),
+        topInstances,
+        recent: h.slice(0, 20)
+    };
+});
 
 // ================= PROFILES =================
 function loadProfiles() {
@@ -256,7 +307,7 @@ async function downloadFile(url, dest, onProgress, headers = {}) {
     await new Promise((resolve, reject) => { res.body.pipe(fileStream); res.body.on('error', reject); fileStream.on('finish', resolve); });
 }
 async function fetchJSON(url, headers = {}) {
-    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.3', ...headers } });
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'BetterImgLauncher/1.0.4', ...headers } });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
     return res.json();
 }
@@ -287,7 +338,8 @@ ipcMain.handle('list-instances', () => {
             lastPlayed: m.lastPlayed || null, playTime: m.playTime || 0,
             customIcon: m.customIcon || null, server: m.server || null,
             perInstance: m.perInstance || {}, modpackVersion: m.modpackVersion || null,
-            modpackProjectId: m.modpackProjectId || null
+            modpackProjectId: m.modpackProjectId || null,
+            tags: m.tags || [], description: m.description || '', author: m.author || '', modpackBanner: m.modpackBanner || null
         };
     }).filter(Boolean);
 });
@@ -327,6 +379,21 @@ ipcMain.handle('pick-instance-icon', async (e, name) => {
         fs.writeFileSync(p, JSON.stringify(m, null, 2));
     }
     return { ok: true, icon: dataUrl };
+});
+
+ipcMain.handle('pick-instance-banner', async (e, name) => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }] });
+    if (r.canceled) return { ok: false };
+    const buf = fs.readFileSync(r.filePaths[0]).toString('base64');
+    const ext = path.extname(r.filePaths[0]).slice(1);
+    const dataUrl = `data:image/${ext};base64,${buf}`;
+    const p = path.join(instancesDir, name, 'instance.json');
+    if (fs.existsSync(p)) {
+        const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
+        m.modpackBanner = dataUrl;
+        fs.writeFileSync(p, JSON.stringify(m, null, 2));
+    }
+    return { ok: true, banner: dataUrl };
 });
 
 // ================= FILE MANAGER =================
@@ -479,7 +546,7 @@ ipcMain.handle('export-instance', async (e, name) => {
         return { ok: true, path: save.filePath };
     } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle('export-mrpack', async (e, name) => {
+ipcMain.handle('export-mrpack', async (e, { name, meta: extraMeta }) => {
     try {
         const instDir = path.join(instancesDir, name); const meta = instMeta(instDir);
         if (!meta) throw new Error('Not found');
@@ -490,14 +557,30 @@ ipcMain.handle('export-mrpack', async (e, name) => {
         if (fs.existsSync(modsDir)) for (const f of fs.readdirSync(modsDir)) {
             if (!f.endsWith('.jar')) continue;
             const buf = fs.readFileSync(path.join(modsDir, f));
-            files.push({ path: `mods/${f}`, hashes: { sha512: require('crypto').createHash('sha512').update(buf).digest('hex') }, downloads: [], fileSize: buf.length });
+            files.push({ path: `mods/${f}`, hashes: { sha512: crypto.createHash('sha512').update(buf).digest('hex') }, downloads: [], fileSize: buf.length });
             zip.addFile(`overrides/mods/${f}`, buf);
         }
         for (const d of ['config', 'defaultconfigs', 'kubejs', 'scripts', 'resourcepacks', 'shaderpacks']) {
             const p = path.join(instDir, d);
             if (fs.existsSync(p)) zip.addLocalFolder(p, `overrides/${d}`);
         }
-        zip.addFile('modrinth.index.json', Buffer.from(JSON.stringify({ formatVersion: 1, game: 'minecraft', versionId: meta.modpackVersion || '1.0.0', name: meta.name || name, summary: 'Exported', files, dependencies: meta.dependencies }, null, 2)));
+        if (extraMeta) {
+            if (extraMeta.description) fs.writeFileSync(path.join(userData, 'tmp-desc.txt'), extraMeta.description);
+            if (extraMeta.banner) {
+                const base64Data = extraMeta.banner.replace(/^data:image\/\w+;base64,/, '');
+                zip.addFile('overrides/banner.png', Buffer.from(base64Data, 'base64'));
+            }
+        }
+        const index = {
+            formatVersion: 1, game: 'minecraft',
+            versionId: extraMeta?.version || meta.modpackVersion || '1.0.0',
+            name: extraMeta?.title || meta.name || name,
+            summary: extraMeta?.description || 'Exported from BetterImgLauncher',
+            author: extraMeta?.author || meta.author || '',
+            files,
+            dependencies: meta.dependencies
+        };
+        zip.addFile('modrinth.index.json', Buffer.from(JSON.stringify(index, null, 2)));
         zip.writeZip(save.filePath);
         return { ok: true, path: save.filePath };
     } catch (err) { return { ok: false, error: err.message }; }
@@ -531,7 +614,12 @@ async function importMrpackFromPath(zipPath, instanceName) {
     }
     let icon = null;
     for (const c of ['icon.png', 'pack.png']) { const p = path.join(instDir, c); if (fs.existsSync(p)) { icon = 'data:image/png;base64,' + fs.readFileSync(p).toString('base64'); break; } }
-    fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({ name: index.name, dependencies: index.dependencies, importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null, modpackVersion: index.versionId || '1.0.0' }, null, 2));
+    fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({
+        name: index.name, dependencies: index.dependencies,
+        importedAt: new Date().toISOString(), icon, playTime: 0, lastPlayed: null,
+        modpackVersion: index.versionId || '1.0.0',
+        author: index.author || ''
+    }, null, 2));
     const s = loadSettings();
     const cv = await ensureLoader({ dependencies: index.dependencies, javaPath: s.javaPath || '/usr/bin/java', gameDir: instDir, log: m => sendLog(m, 'loader') });
     return { index, customVersion: cv, icon, ok, skip, err };
@@ -664,10 +752,146 @@ ipcMain.handle('resolve-moddeps', async (e, { projectId, versionId }) => {
     } catch (err) { return { ok: false, error: err.message }; }
 });
 
+// ================= MOD CONFLICT DETECTOR =================
+ipcMain.handle('detect-conflicts', async (e, instanceName) => {
+    try {
+        const instDir = path.join(instancesDir, instanceName);
+        const meta = instMeta(instDir);
+        const modsDir = path.join(instDir, 'mods');
+        if (!fs.existsSync(modsDir)) return { ok: true, conflicts: [] };
+        const installedMods = fs.readdirSync(modsDir).filter(f => f.endsWith('.jar')).map(f => f.replace(/\.jar$/, ''));
+        const conflicts = [];
+
+        if (!meta || !meta.trackedMods) return { ok: true, conflicts: [] };
+
+        for (const t of meta.trackedMods) {
+            try {
+                const versions = await fetchJSON(`https://api.modrinth.com/v2/project/${encodeURIComponent(t.projectId)}/version`, modrinthHeaders());
+                const current = versions.find(v => v.id === t.versionId);
+                if (!current) continue;
+                const deps = current.dependencies || [];
+                for (const dep of deps) {
+                    if (!dep.project_id) continue;
+                    try {
+                        const depProject = await fetchJSON(`https://api.modrinth.com/v2/project/${dep.project_id}`, modrinthHeaders());
+                        const depInstalled = installedMods.some(m => m.toLowerCase().includes(depProject.slug?.toLowerCase() || ''));
+                        if (!depInstalled) {
+                            conflicts.push({
+                                type: 'missing',
+                                mod: t.fileName,
+                                dependency: depProject.title,
+                                dependencyProjectId: dep.project_id,
+                                dependencyVersionId: dep.version_id
+                            });
+                        }
+                    } catch {}
+                }
+            } catch {}
+        }
+
+        const dupes = {};
+        for (const m of installedMods) {
+            const key = m.split('-')[0].toLowerCase().replace(/_/g, '');
+            if (!dupes[key]) dupes[key] = [];
+            dupes[key].push(m);
+        }
+        for (const [key, list] of Object.entries(dupes)) {
+            if (list.length > 1) conflicts.push({ type: 'duplicate', mods: list });
+        }
+
+        return { ok: true, conflicts };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+// ================= TAGS =================
+ipcMain.handle('set-instance-tags', (e, { name, tags }) => {
+    const p = path.join(instancesDir, name, 'instance.json');
+    if (!fs.existsSync(p)) return { ok: false };
+    const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    m.tags = tags || [];
+    fs.writeFileSync(p, JSON.stringify(m, null, 2));
+    return { ok: true };
+});
+
+ipcMain.handle('get-all-tags', () => {
+    if (!fs.existsSync(instancesDir)) return [];
+    const tags = new Set();
+    for (const name of fs.readdirSync(instancesDir)) {
+        const m = instMeta(path.join(instancesDir, name));
+        if (m && m.tags) m.tags.forEach(t => tags.add(t));
+    }
+    return Array.from(tags).sort();
+});
+
+// ================= THEMES =================
+ipcMain.handle('export-theme', async (e, { name, theme }) => {
+    try {
+        const save = await dialog.showSaveDialog(win, { defaultPath: `${name}.theme.json`, filters: [{ name: 'Theme', extensions: ['theme.json', 'json'] }] });
+        if (save.canceled) return { ok: false };
+        fs.writeFileSync(save.filePath, JSON.stringify(theme, null, 2));
+        return { ok: true, path: save.filePath };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('import-theme', async () => {
+    const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Theme', extensions: ['json'] }] });
+    if (r.canceled) return { ok: false };
+    try {
+        const data = JSON.parse(fs.readFileSync(r.filePaths[0], 'utf-8'));
+        return { ok: true, theme: data };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+ipcMain.handle('list-saved-themes', () => {
+    if (!fs.existsSync(themesDir)) return [];
+    return fs.readdirSync(themesDir).filter(f => f.endsWith('.json')).map(f => {
+        try {
+            const data = JSON.parse(fs.readFileSync(path.join(themesDir, f), 'utf-8'));
+            return { file: f, name: data.name || f, ...data };
+        } catch { return null; }
+    }).filter(Boolean);
+});
+
+ipcMain.handle('save-theme', (e, { name, theme }) => {
+    const file = path.join(themesDir, `${name.replace(/[^a-z0-9_-]/gi, '_')}.json`);
+    fs.writeFileSync(file, JSON.stringify({ name, ...theme }, null, 2));
+    return { ok: true, file };
+});
+
+ipcMain.handle('delete-theme', (e, fileName) => {
+    const p = path.join(themesDir, fileName);
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    return { ok: true };
+});
+
+// ================= SCREENSHOT UPLOAD (0x0.st) =================
+ipcMain.handle('upload-screenshot', async (e, { instanceName, name }) => {
+    try {
+        const p = path.join(instancesDir, instanceName, 'screenshots', name);
+        if (!fs.existsSync(p)) throw new Error('Not found');
+        const buf = fs.readFileSync(p);
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('file', buf, { filename: name });
+        const res = await fetch('https://0x0.st', {
+            method: 'POST',
+            headers: { 'User-Agent': 'BetterImgLauncher/1.0.4', ...form.getHeaders() },
+            body: form
+        });
+        const url = (await res.text()).trim();
+        if (!url.startsWith('http')) throw new Error('Upload failed: ' + url);
+        return { ok: true, url };
+    } catch (err) { return { ok: false, error: err.message }; }
+});
+
+
+
+ipcMain.handle('open-external', (e, url) => { shell.openExternal(url); return { ok: true }; });
+
 // ================= MODRINTH =================
 function modrinthHeaders() {
     const s = loadSettings();
-    const h = { 'User-Agent': 'BetterImgLauncher/1.0.3' };
+    const h = { 'User-Agent': 'BetterImgLauncher/1.0.4' };
     if (s.modrinthToken && s.modrinthToken.trim()) h['Authorization'] = s.modrinthToken.trim();
     return h;
 }
@@ -800,7 +1024,7 @@ ipcMain.handle('create-instance', async (e, { name, mcVersion, loader, loaderVer
             else if (loader === 'forge') deps['forge'] = loaderVersion;
             else if (loader === 'neoforge') deps['neoforge'] = loaderVersion;
         }
-        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({ name, dependencies: deps, importedAt: new Date().toISOString(), icon: null, playTime: 0, lastPlayed: null, manual: true, perInstance: {} }, null, 2));
+        fs.writeFileSync(path.join(instDir, 'instance.json'), JSON.stringify({ name, dependencies: deps, importedAt: new Date().toISOString(), icon: null, playTime: 0, lastPlayed: null, manual: true, perInstance: {}, tags: [] }, null, 2));
         if (loader && loader !== 'vanilla' && loaderVersion) {
             const s = loadSettings();
             const cv = await ensureLoader({ dependencies: deps, javaPath: s.javaPath || '/usr/bin/java', gameDir: instDir, log: m => sendLog(m, 'loader') });
@@ -814,8 +1038,10 @@ ipcMain.handle('create-instance', async (e, { name, mcVersion, loader, loaderVer
 async function initDiscordRpc() {
     const s = loadSettings();
     if (!s.discordRpc) return;
+    let DiscordRPC;
+    try { DiscordRPC = require('discord-rpc'); }
+    catch { sendLog('discord-rpc not installed, RPC disabled', 'warn'); return; }
     try {
-        const DiscordRPC = require('discord-rpc');
         discordRpc = new DiscordRPC.Client({ transport: 'ipc' });
         await discordRpc.login({ clientId: '1564258194958852237' });
         discordRpc.on('ready', () => {
@@ -835,6 +1061,21 @@ function updateRpcIdle() {
     if (!discordRpc) return;
     try { discordRpc.setActivity({ details: 'In launcher', state: 'BetterImgLauncher', startTimestamp: new Date(), largeImageKey: 'logo', largeImageText: 'BetterImgLauncher' }); } catch {}
 }
+
+// ================= GLOBAL HOTKEY =================
+function registerGlobalHotkey() {
+    const s = loadSettings();
+    if (!s.quickLaunchKey) return;
+    try {
+        if (globalHotkey) globalShortcut.unregister(globalHotkey);
+        globalShortcut.register(s.quickLaunchKey, () => {
+            if (win) { win.show(); win.webContents.send('quick-launch'); }
+        });
+        globalHotkey = s.quickLaunchKey;
+        sendLog(`Hotkey registered: ${s.quickLaunchKey}`, 'info');
+    } catch (err) { sendLog('Hotkey failed: ' + err.message, 'warn'); }
+}
+ipcMain.handle('reregister-hotkey', () => { registerGlobalHotkey(); return { ok: true }; });
 
 // ================= LAUNCH =================
 function runShell(cmd, cwd, env) {
@@ -866,10 +1107,19 @@ ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extr
         const finalRam = perInstance.ram || ram || storedSettings.ram || 4096;
         const finalJava = perInstance.javaPath || javaPath || storedSettings.javaPath || '/usr/bin/java';
         const finalArgs = perInstance.extraJvmArgs || extraJvmArgs || storedSettings.extraJvmArgs || '';
-        const finalServer = server || meta.server || perInstance.server;
+        let finalServer = server || meta.server || perInstance.server;
+        let serverAuthlibApi = null;
+
+        if (finalServer) {
+            const servers = loadServers();
+            const found = servers.find(s => s.ip === finalServer);
+            if (found && found.authlibApi) {
+                serverAuthlibApi = found.authlibApi;
+                sendLog(`Server requires authlib: ${serverAuthlibApi}`, 'info');
+            }
+        }
 
         sendLog(`Using Java: ${finalJava}`, 'info');
-        sendLog(`Using RAM: ${finalRam} MB`, 'info');
 
         let userName = nickname;
         let accessToken = 'offline';
@@ -880,7 +1130,13 @@ ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extr
         if (!activeAuthlib) {
             const profiles = loadProfiles();
             const active = profiles.find(p => p.active);
-            if (active && active.type === 'authlib' && active.accessToken) activeAuthlib = active;
+            if (active && active.type === 'authlib' && active.accessToken) {
+                if (serverAuthlibApi && active.apiRoot !== serverAuthlibApi) {
+                    const matching = profiles.find(p => p.type === 'authlib' && p.apiRoot === serverAuthlibApi && p.accessToken);
+                    if (matching) activeAuthlib = matching;
+                    else activeAuthlib = active;
+                } else activeAuthlib = active;
+            }
         }
         if (activeAuthlib && activeAuthlib.accessToken) {
             userName = activeAuthlib.name || nickname;
@@ -949,6 +1205,7 @@ ipcMain.handle('launch', async (e, { instanceName, nickname, ram, javaPath, extr
         launcher.launch(opts);
         currentGame = { launcher, instanceName, startedAt };
         updateRpcPlaying(meta.name || instanceName);
+        if (storedSettings.minimizeToTray && win) win.hide();
         return { ok: true };
     } catch (err) {
         sendLog('Launch error: ' + err.message, 'error');
@@ -967,7 +1224,8 @@ ipcMain.handle('sys-info', () => ({
     platform: process.platform, arch: process.arch,
     totalMem: os.totalmem(), freeMem: os.freemem(),
     cpus: os.cpus().length, cpuModel: os.cpus()[0]?.model,
-    userData, instancesDir
+    userData, instancesDir,
+    launcherVersion: '1.0.4'
 }));
 
 // ================= MOD UPDATE TRACKING =================
@@ -989,7 +1247,6 @@ ipcMain.handle('check-mod-updates', async (e, instanceName) => {
         const meta = JSON.parse(fs.readFileSync(p, 'utf-8'));
         const tracked = meta.trackedMods || [];
         if (!tracked.length) return { ok: true, updates: [] };
-
         const updates = [];
         for (const t of tracked) {
             try {
@@ -998,16 +1255,7 @@ ipcMain.handle('check-mod-updates', async (e, instanceName) => {
                 const latest = versions[0];
                 if (latest.id !== t.versionId) {
                     const file = latest.files.find(f => f.primary) || latest.files[0];
-                    updates.push({
-                        projectId: t.projectId,
-                        fileName: t.fileName,
-                        projectType: t.projectType || 'mod',
-                        currentVersion: t.versionId,
-                        latestVersion: latest.id,
-                        latestVersionNumber: latest.version_number,
-                        latestFileName: file.filename,
-                        downloadUrl: file.url
-                    });
+                    updates.push({ projectId: t.projectId, fileName: t.fileName, projectType: t.projectType || 'mod', currentVersion: t.versionId, latestVersion: latest.id, latestVersionNumber: latest.version_number, latestFileName: file.filename, downloadUrl: file.url });
                 }
             } catch {}
         }
@@ -1031,10 +1279,7 @@ ipcMain.handle('apply-mod-update', async (e, { instanceName, update }) => {
         const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
         if (m.trackedMods) {
             const idx = m.trackedMods.findIndex(t => t.fileName === update.fileName);
-            if (idx >= 0) {
-                m.trackedMods[idx].fileName = update.latestFileName;
-                m.trackedMods[idx].versionId = update.latestVersion;
-            }
+            if (idx >= 0) { m.trackedMods[idx].fileName = update.latestFileName; m.trackedMods[idx].versionId = update.latestVersion; }
             fs.writeFileSync(p, JSON.stringify(m, null, 2));
         }
         return { ok: true, file: update.latestFileName };
@@ -1058,22 +1303,46 @@ ipcMain.handle('get-modpack-changelog', async (e, { instanceName, versionId }) =
 ipcMain.handle('list-screenshots', (e, instanceName) => {
     const dir = path.join(instancesDir, instanceName, 'screenshots');
     if (!fs.existsSync(dir)) return [];
-    return fs.readdirSync(dir)
-        .filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f))
-        .map(f => {
-            const full = path.join(dir, f);
-            const st = fs.statSync(full);
-            const buf = fs.readFileSync(full).toString('base64');
-            const ext = path.extname(f).slice(1).toLowerCase().replace('jpg', 'jpeg');
-            return { name: f, size: st.size, mtime: st.mtimeMs, dataUrl: `data:image/${ext};base64,${buf}` };
-        })
-        .sort((a, b) => b.mtime - a.mtime);
+    return fs.readdirSync(dir).filter(f => /\.(png|jpg|jpeg|webp)$/i.test(f)).map(f => {
+        const full = path.join(dir, f);
+        const st = fs.statSync(full);
+        const buf = fs.readFileSync(full).toString('base64');
+        const ext = path.extname(f).slice(1).toLowerCase().replace('jpg', 'jpeg');
+        return { name: f, size: st.size, mtime: st.mtimeMs, dataUrl: `data:image/${ext};base64,${buf}` };
+    }).sort((a, b) => b.mtime - a.mtime);
 });
-
 ipcMain.handle('delete-screenshot', (e, { instanceName, name }) => {
     const p = path.join(instancesDir, instanceName, 'screenshots', name);
     if (fs.existsSync(p)) fs.unlinkSync(p);
     return { ok: true };
 });
 
-app.whenReady().then(() => { setTimeout(initDiscordRpc, 2000); });
+ipcMain.handle('check-launcher-update', async () => {
+    try {
+        const res = await fetch('https://api.github.com/repos/pingvinoks/betterimglauncher/releases/latest', {
+            headers: { 'User-Agent': 'BetterImgLauncher/1.0.4' }
+        });
+        if (!res.ok) return { ok: false, error: 'No releases found (' + res.status + ')' };
+        const data = await res.json();
+
+        // Вытаскиваем версию из тега: "1.0.3", "v1.0.3", "1.0.3release" -> "1.0.3"
+        const tagMatch = (data.tag_name || '').match(/(\d+)\.(\d+)\.(\d+)/);
+        if (!tagMatch) return { ok: false, error: 'Invalid tag: ' + data.tag_name };
+        const latest = `${tagMatch[1]}.${tagMatch[2]}.${tagMatch[3]}`;
+        const current = '1.0.4';
+
+        // Числовое сравнение версий
+        const cmp = (a, b) => {
+            const pa = a.split('.').map(Number);
+            const pb = b.split('.').map(Number);
+            for (let i = 0; i < 3; i++) {
+                if (pa[i] > pb[i]) return 1;
+                if (pa[i] < pb[i]) return -1;
+            }
+            return 0;
+        };
+
+        const hasUpdate = cmp(latest, current) > 0;
+        return { ok: true, latest, current, hasUpdate, url: data.html_url, notes: data.body, tagName: data.tag_name };
+    } catch (err) { return { ok: false, error: err.message }; }
+});

@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="style.css" />
 </head>
 <body data-theme="m3-dark">
-
 <div class="titlebar">
     <div class="titlebar-title">BetterImgLauncher</div>
     <div class="titlebar-actions">
@@ -25,19 +24,20 @@
             <div class="brand-icon"><span class="material-symbols-rounded">deployed_code</span></div>
             <div class="brand-text">
                 <div class="brand-name">BetterImg</div>
-                <div class="brand-sub">v1.0.3</div>
+                <div class="brand-sub">v1.0.4</div>
             </div>
         </div>
 
         <nav class="rail-nav">
-            <button data-tab="home" class="active" data-tooltip="Home"><span class="material-symbols-rounded">home</span><span class="nav-label">Home</span></button>
-            <button data-tab="launch" data-tooltip="Library"><span class="material-symbols-rounded">grid_view</span><span class="nav-label">Library</span></button>
-            <button data-tab="discover" data-tooltip="Discover"><span class="material-symbols-rounded">explore</span><span class="nav-label">Discover</span></button>
-            <button data-tab="import" data-tooltip="New Instance"><span class="material-symbols-rounded">add_box</span><span class="nav-label">New Instance</span></button>
-            <button data-tab="servers" data-tooltip="Servers"><span class="material-symbols-rounded">dns</span><span class="nav-label">Servers</span></button>
-            <button data-tab="files" data-tooltip="Files"><span class="material-symbols-rounded">folder</span><span class="nav-label">Files</span></button>
-            <button data-tab="settings" data-tooltip="Settings"><span class="material-symbols-rounded">settings</span><span class="nav-label">Settings</span></button>
-            <button data-tab="console" data-tooltip="Console"><span class="material-symbols-rounded">terminal</span><span class="nav-label">Console</span></button>
+            <button data-tab="home" class="active" data-tooltip="Home"><span class="material-symbols-rounded">home</span><span class="nav-label" data-i18n="nav.home">Home</span></button>
+            <button data-tab="launch" data-tooltip="Library"><span class="material-symbols-rounded">grid_view</span><span class="nav-label" data-i18n="nav.library">Library</span></button>
+            <button data-tab="discover" data-tooltip="Discover"><span class="material-symbols-rounded">explore</span><span class="nav-label" data-i18n="nav.discover">Discover</span></button>
+            <button data-tab="import" data-tooltip="New Instance"><span class="material-symbols-rounded">add_box</span><span class="nav-label" data-i18n="nav.newInstance">New Instance</span></button>
+            <button data-tab="servers" data-tooltip="Servers"><span class="material-symbols-rounded">dns</span><span class="nav-label" data-i18n="nav.servers">Servers</span></button>
+            <button data-tab="files" data-tooltip="Files"><span class="material-symbols-rounded">folder</span><span class="nav-label" data-i18n="nav.files">Files</span></button>
+            <button data-tab="stats" data-tooltip="Stats"><span class="material-symbols-rounded">bar_chart</span><span class="nav-label" data-i18n="nav.stats">Stats</span></button>
+            <button data-tab="settings" data-tooltip="Settings"><span class="material-symbols-rounded">settings</span><span class="nav-label" data-i18n="nav.settings">Settings</span></button>
+            <button data-tab="console" data-tooltip="Console"><span class="material-symbols-rounded">terminal</span><span class="nav-label" data-i18n="nav.console">Console</span></button>
         </nav>
 
         <div class="profile-box">
@@ -60,51 +60,58 @@
     <div id="sidebarResizer" class="sidebar-resizer"></div>
 
     <main>
+        <!-- HOME -->
         <section id="tab-home" class="tab active">
-            <div class="tab-header"><div><h2>Welcome back</h2><p class="tab-sub">Quick launch and status</p></div></div>
+            <div class="tab-header"><div><h2 data-i18n="home.welcome">Welcome back</h2><p class="tab-sub" data-i18n="home.quickLaunch">Quick launch and status</p></div></div>
             <div class="home-grid">
                 <div class="card home-main" id="homeWallpaper">
-                    <h3><span class="material-symbols-rounded">history</span> Last played</h3>
+                    <h3><span class="material-symbols-rounded">history</span> <span data-i18n="home.lastPlayed">Last played</span></h3>
                     <div id="lastPlayedCard" class="last-played"><div class="hint">No instances yet.</div></div>
                 </div>
                 <div class="card">
-                    <h3><span class="material-symbols-rounded">monitor_heart</span> System</h3>
-                    <div class="list-item"><span class="name">Java detected</span><span class="meta" id="javaCount">Click detect</span></div>
-                    <div class="list-item"><span class="name">Active profile</span><span class="meta" id="homeProfile">—</span></div>
-                    <div class="list-item"><span class="name">Platform</span><span class="meta" id="homePlatform">—</span></div>
+                    <h3><span class="material-symbols-rounded">monitor_heart</span> <span data-i18n="home.system">System</span></h3>
+                    <div class="list-item"><span class="name" data-i18n="home.javaDetected">Java detected</span><span class="meta" id="javaCount">Click detect</span></div>
+                    <div class="list-item"><span class="name" data-i18n="home.activeProfile">Active profile</span><span class="meta" id="homeProfile">—</span></div>
+                    <div class="list-item"><span class="name" data-i18n="home.platform">Platform</span><span class="meta" id="homePlatform">—</span></div>
                 </div>
             </div>
         </section>
 
+        <!-- LIBRARY -->
         <section id="tab-launch" class="tab">
             <div class="tab-header">
-                <div><h2>Library</h2><p class="tab-sub">Your modpack instances</p></div>
+                <div><h2 data-i18n="library.title">Library</h2><p class="tab-sub" data-i18n="library.sub">Your modpack instances</p></div>
                 <div class="row-inline">
                     <button id="refreshInstances" class="icon-btn" data-tooltip="Refresh"><span class="material-symbols-rounded">refresh</span></button>
                     <button id="openInstances" class="icon-btn" data-tooltip="Open folder"><span class="material-symbols-rounded">folder_open</span></button>
                 </div>
             </div>
+            <div class="row-inline" style="margin-bottom:16px">
+                <input id="librarySearch" type="text" class="mini-input" placeholder="Search instances..." style="flex:1;max-width:300px" data-i18n-placeholder="library.search" />
+                <select id="libraryTagFilter" class="chip-select" style="width:180px"><option value="">All tags</option></select>
+            </div>
             <div id="instanceGrid" class="instance-grid"></div>
             <div id="emptyLib" class="empty">
                 <span class="material-symbols-rounded" style="font-size:64px">inventory_2</span>
-                <div class="empty-title">No instances yet</div>
-                <div class="empty-sub">Create one on the "New Instance" tab</div>
+                <div class="empty-title" data-i18n="library.empty">No instances yet</div>
+                <div class="empty-sub" data-i18n="library.emptySub">Create one on the New Instance tab</div>
             </div>
         </section>
 
+        <!-- DISCOVER -->
         <section id="tab-discover" class="tab">
-            <div class="tab-header"><div><h2>Discover</h2><p class="tab-sub">Browse Modrinth</p></div></div>
+            <div class="tab-header"><div><h2 data-i18n="discover.title">Discover</h2><p class="tab-sub" data-i18n="discover.sub">Browse Modrinth</p></div></div>
             <div class="card search-card">
                 <div class="search-row">
                     <span class="material-symbols-rounded">search</span>
-                    <input id="discoverQuery" type="text" placeholder="Search..." />
+                    <input id="discoverQuery" type="text" placeholder="Search..." data-i18n-placeholder="discover.search" />
                     <select id="discoverType">
                         <option value="mod">Mods</option>
                         <option value="modpack">Modpacks</option>
                         <option value="resourcepack">Resource Packs</option>
                         <option value="shader">Shaders</option>
                     </select>
-                    <button id="discoverSearchBtn" class="filled-btn">Search</button>
+                    <button id="discoverSearchBtn" class="filled-btn" data-i18n="discover.searchBtn">Search</button>
                 </div>
                 <div class="search-row">
                     <select id="discoverMcVersion" class="chip-select"><option value="">Any MC version</option></select>
@@ -121,122 +128,172 @@
             <div id="discoverResults" class="discover-grid"></div>
         </section>
 
+        <!-- NEW INSTANCE -->
         <section id="tab-import" class="tab">
-            <div class="tab-header"><div><h2>New Instance</h2><p class="tab-sub">Create or import</p></div></div>
+            <div class="tab-header"><div><h2 data-i18n="import.title">New Instance</h2><p class="tab-sub" data-i18n="import.sub">Create or import</p></div></div>
             <div class="mode-tabs">
-                <button data-mode="mrpack" class="active"><span class="material-symbols-rounded">package_2</span> From .mrpack</button>
-                <button data-mode="manual"><span class="material-symbols-rounded">tune</span> Manual</button>
+                <button data-mode="mrpack" class="active"><span class="material-symbols-rounded">package_2</span> <span data-i18n="import.fromMrpack">From .mrpack</span></button>
+                <button data-mode="manual"><span class="material-symbols-rounded">tune</span> <span data-i18n="import.manual">Manual</span></button>
             </div>
             <div class="mode-pane active" data-pane="mrpack">
                 <div class="card">
-                    <label>.mrpack URL <input id="mrpackUrl" type="text" value="https://www.dropbox.com/scl/fi/mg1d7m3gma7bjcsymw7b2/Better-Image-Fix1V1.mrpack?rlkey=b23ehien0m7xlrsra6ppp4d53&st=xsujk87m&dl=1" /></label>
-                    <label>Instance name <input id="instanceName" type="text" value="BetterImageFix" /></label>
-                    <button id="importBtn" class="filled-btn"><span class="material-symbols-rounded">download</span> Download & Install</button>
+                    <label><span data-i18n="import.url">.mrpack URL</span> <input id="mrpackUrl" type="text" value="https://www.dropbox.com/scl/fi/mg1d7m3gma7bjcsymw7b2/Better-Image-Fix1V1.mrpack?rlkey=b23ehien0m7xlrsra6ppp4d53&st=xsujk87m&dl=1" /></label>
+                    <label><span data-i18n="import.instanceName">Instance name</span> <input id="instanceName" type="text" value="BetterImageFix" /></label>
+                    <button id="importBtn" class="filled-btn"><span class="material-symbols-rounded">download</span> <span data-i18n="import.download">Download & Install</span></button>
                 </div>
             </div>
             <div class="mode-pane" data-pane="manual">
                 <div class="card">
-                    <label>Instance name <input id="newInstName" type="text" placeholder="My Cool Instance" /></label>
-                    <label>Minecraft version <select id="mcVersionSelect"><option value="">Loading...</option></select></label>
-                    <label>Loader <select id="loaderSelect"><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select></label>
-                    <label id="loaderVersionWrap" style="display:none">Loader version <select id="loaderVersionSelect"><option value="">Select MC first</option></select></label>
-                    <button id="createInstanceBtn" class="filled-btn"><span class="material-symbols-rounded">add</span> Create Instance</button>
+                    <label><span data-i18n="import.instanceName">Instance name</span> <input id="newInstName" type="text" placeholder="My Cool Instance" /></label>
+                    <label><span data-i18n="import.mcVersion">Minecraft version</span> <select id="mcVersionSelect"><option value="">Loading...</option></select></label>
+                    <label><span data-i18n="import.loader">Loader</span> <select id="loaderSelect"><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select></label>
+                    <label id="loaderVersionWrap" style="display:none"><span data-i18n="import.loaderVersion">Loader version</span> <select id="loaderVersionSelect"><option value="" data-i18n="import.selectMcFirst">Select MC first</option></select></label>
+                    <button id="createInstanceBtn" class="filled-btn"><span class="material-symbols-rounded">add</span> <span data-i18n="import.create">Create Instance</span></button>
                 </div>
             </div>
         </section>
 
+        <!-- SERVERS -->
         <section id="tab-servers" class="tab">
-            <div class="tab-header"><div><h2>Servers</h2><p class="tab-sub">Saved servers for quick join</p></div></div>
+            <div class="tab-header"><div><h2 data-i18n="servers.title">Servers</h2><p class="tab-sub" data-i18n="servers.sub">Saved servers for quick join</p></div></div>
             <div class="card">
-                <div class="row-inline" style="margin-bottom:12px">
-                    <input id="newServerName" type="text" placeholder="Server name" class="mini-input" style="width:200px" />
-                    <input id="newServerIp" type="text" placeholder="play.example.com:25565" class="mini-input" style="flex:1" />
-                    <button id="addServerBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> Add</button>
+                <div class="row-inline" style="margin-bottom:12px;flex-wrap:wrap">
+                    <input id="newServerName" type="text" placeholder="Server name" class="mini-input" style="width:160px" data-i18n-placeholder="servers.name" />
+                    <input id="newServerIp" type="text" placeholder="play.example.com:25565" class="mini-input" style="flex:1;min-width:200px" data-i18n-placeholder="servers.ip" />
+                    <input id="newServerAuthlib" type="text" placeholder="Authlib API (optional)" class="mini-input" style="width:220px" />
+                    <button id="addServerBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> <span data-i18n="servers.add">Add</span></button>
                 </div>
                 <div id="serversList"></div>
             </div>
         </section>
 
+        <!-- FILES -->
         <section id="tab-files" class="tab">
             <div class="tab-header">
-                <div><h2>Files</h2><p class="tab-sub">Browse and edit instance files</p></div>
-                <div class="row-inline">
-                    <select id="filesInstanceSelect" class="chip-select" style="width:220px"><option value="">Select instance</option></select>
-                </div>
+                <div><h2 data-i18n="files.title">Files</h2><p class="tab-sub" data-i18n="files.sub">Browse and edit instance files</p></div>
+                <div class="row-inline"><select id="filesInstanceSelect" class="chip-select" style="width:220px"><option value="">Select instance</option></select></div>
             </div>
             <div class="file-toolbar">
                 <button id="filesUpBtn" class="icon-btn" data-tooltip="Up"><span class="material-symbols-rounded">arrow_upward</span></button>
                 <input id="filesPathInput" type="text" class="file-path" placeholder="/" readonly />
-                <button id="filesImportBtn" class="outlined-btn"><span class="material-symbols-rounded">upload</span> Import</button>
-                <button id="filesMkdirBtn" class="outlined-btn"><span class="material-symbols-rounded">create_new_folder</span> New Folder</button>
+                <button id="filesImportBtn" class="outlined-btn"><span class="material-symbols-rounded">upload</span> <span data-i18n="files.import">Import</span></button>
+                <button id="filesMkdirBtn" class="outlined-btn"><span class="material-symbols-rounded">create_new_folder</span> <span data-i18n="files.newFolder">New Folder</span></button>
                 <button id="filesRefreshBtn" class="icon-btn" data-tooltip="Refresh"><span class="material-symbols-rounded">refresh</span></button>
             </div>
             <div id="filesList" class="file-list"></div>
         </section>
 
+        <!-- STATS -->
+        <section id="tab-stats" class="tab">
+            <div class="tab-header"><div><h2 data-i18n="stats.title">Stats</h2><p class="tab-sub" data-i18n="stats.sub">Playtime and history</p></div></div>
+            <div id="statsBody"></div>
+        </section>
+
+        <!-- SETTINGS -->
         <section id="tab-settings" class="tab">
-            <div class="tab-header"><div><h2>Settings</h2><p class="tab-sub">Global launcher configuration</p></div></div>
+            <div class="tab-header"><div><h2 data-i18n="settings.title">Settings</h2><p class="tab-sub" data-i18n="settings.sub">Global launcher configuration</p></div></div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">palette</span> Appearance</h3>
+                <h3><span class="material-symbols-rounded">language</span> <span data-i18n="settings.language">Language</span></h3>
+                <label>
+                    <select id="languageSelect">
+                        <option value="en">English</option>
+                        <option value="ru">Русский</option>
+                        <option value="uk">Українська</option>
+                    </select>
+                </label>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">palette</span> <span data-i18n="settings.appearance">Appearance</span></h3>
                 <div class="theme-grid" id="themeGrid">
                     <button class="theme-tile" data-theme-value="m3-dark"><div class="theme-preview m3-dark-preview"></div><span>Material Dark</span></button>
                     <button class="theme-tile" data-theme-value="m3-light"><div class="theme-preview m3-light-preview"></div><span>Material Light</span></button>
                     <button class="theme-tile" data-theme-value="m3-purple"><div class="theme-preview m3-purple-preview"></div><span>Material Purple</span></button>
                     <button class="theme-tile" data-theme-value="m3-green"><div class="theme-preview m3-green-preview"></div><span>Material Green</span></button>
+                    <button class="theme-tile" data-theme-value="halloween"><div class="theme-preview halloween-preview"></div><span>🎃 Halloween</span></button>
+                    <button class="theme-tile" data-theme-value="christmas"><div class="theme-preview christmas-preview"></div><span>🎄 Christmas</span></button>
                     <button class="theme-tile" data-theme-value="classic"><div class="theme-preview classic-preview"></div><span>Classic</span></button>
                 </div>
-                <label style="margin-top:16px">Wallpaper for Home
+                <label style="margin-top:16px"><span data-i18n="settings.wallpaper">Wallpaper for Home</span>
                     <div class="row-inline">
-                        <button id="pickWallpaperBtn" class="outlined-btn"><span class="material-symbols-rounded">image</span> Choose</button>
-                        <button id="clearWallpaperBtn" class="outlined-btn">Clear</button>
+                        <button id="pickWallpaperBtn" class="outlined-btn"><span class="material-symbols-rounded">image</span> <span data-i18n="settings.choose">Choose</span></button>
+                        <button id="clearWallpaperBtn" class="outlined-btn" data-i18n="settings.clear">Clear</button>
                     </div>
                 </label>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">code</span> Custom CSS</h3>
-                <label>Paste CSS to override theme
-                    <textarea id="customCss" rows="5" style="width:100%;margin-top:8px;padding:12px;background:var(--surface-3);border:none;border-radius:12px;color:var(--on-surface);font-family:monospace;font-size:12px;resize:vertical;user-select:text;"></textarea>
-                </label>
-                <button id="applyCustomCss" class="outlined-btn">Apply CSS</button>
+                <h3><span class="material-symbols-rounded">collections_bookmark</span> Custom Themes</h3>
+                <div class="row-inline" style="margin-bottom:12px;flex-wrap:wrap">
+                    <button id="saveCurrentThemeBtn" class="outlined-btn"><span class="material-symbols-rounded">save</span> Save current</button>
+                    <button id="importThemeBtn" class="outlined-btn"><span class="material-symbols-rounded">upload</span> Import</button>
+                    <button id="exportThemeBtn" class="outlined-btn"><span class="material-symbols-rounded">download</span> Export current</button>
+                </div>
+                <div id="savedThemesList"></div>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">notifications</span> Notifications & Integrations</h3>
+                <h3><span class="material-symbols-rounded">code</span> <span data-i18n="settings.customCss">Custom CSS</span></h3>
+                <label><span data-i18n="settings.customCssHint">Paste CSS to override theme</span>
+                    <textarea id="customCss" rows="5" style="width:100%;margin-top:8px;padding:12px;background:var(--surface-3);border:none;border-radius:12px;color:var(--on-surface);font-family:monospace;font-size:12px;resize:vertical;user-select:text;"></textarea>
+                </label>
+                <button id="applyCustomCss" class="outlined-btn" data-i18n="settings.applyCss">Apply CSS</button>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">notifications</span> <span data-i18n="settings.notifications">Notifications & Integrations</span></h3>
                 <label style="display:flex;align-items:center;gap:12px">
                     <input type="checkbox" id="autoBackup" style="width:20px;height:20px" />
-                    Auto-backup before launch
+                    <span data-i18n="settings.autoBackup">Auto-backup before launch</span>
                 </label>
                 <label style="display:flex;align-items:center;gap:12px">
                     <input type="checkbox" id="discordRpc" style="width:20px;height:20px" />
-                    Discord Rich Presence
+                    <span data-i18n="settings.discordRpc">Discord Rich Presence</span>
                 </label>
-            </div>
-
-            <div class="card">
-                <h3><span class="material-symbols-rounded">person</span> Accounts</h3>
-                <div id="profileList" class="profile-list"></div>
-                <div class="row-inline" style="margin-top:12px">
-                    <input id="newProfileName" type="text" placeholder="New nickname" class="mini-input" style="width:200px" />
-                    <button id="addProfileBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> Add</button>
+                <label style="display:flex;align-items:center;gap:12px">
+                    <input type="checkbox" id="minimizeToTray" style="width:20px;height:20px" />
+                    <span data-i18n="settings.minimizeToTray">Minimize to tray on launch</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:12px">
+                    <input type="checkbox" id="checkUpdatesOnStart" style="width:20px;height:20px" />
+                    <span>Check for launcher updates on startup</span>
+                </label>
+                <label><span data-i18n="settings.quickLaunchKey">Quick launch hotkey</span>
+                    <input id="quickLaunchKey" type="text" placeholder="CommandOrControl+Shift+M" />
+                </label>
+                <div class="row-inline" style="margin-top:8px">
+                    <button id="checkUpdateBtn" class="outlined-btn">
+                        <span class="material-symbols-rounded">refresh</span>
+                        <span>Check for updates now</span>
+                    </button>
+                    <span id="updateStatus" class="hint" style="margin:0"></span>
                 </div>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">key</span> Authlib (Ely.by / LittleSkin)</h3>
-                <label>API Root <input id="authlibApi" type="text" placeholder="https://account.ely.by/api/authlib-injector" /></label>
-                <label>Username <input id="authlibUser" type="text" /></label>
-                <label>Password <input id="authlibPass" type="password" /></label>
+                <h3><span class="material-symbols-rounded">person</span> <span data-i18n="settings.accounts">Accounts</span></h3>
+                <div id="profileList" class="profile-list"></div>
+                <div class="row-inline" style="margin-top:12px">
+                    <input id="newProfileName" type="text" placeholder="New nickname" class="mini-input" style="width:200px" />
+                    <button id="addProfileBtn" class="outlined-btn"><span class="material-symbols-rounded">add</span> <span data-i18n="settings.addProfile">Add</span></button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><span class="material-symbols-rounded">key</span> <span data-i18n="settings.authlib">Authlib (Ely.by / LittleSkin)</span></h3>
+                <label><span data-i18n="settings.authlibApiRoot">API Root</span> <input id="authlibApi" type="text" placeholder="https://account.ely.by/api/authlib-injector" /></label>
+                <label><span data-i18n="settings.authlibUsername">Username</span> <input id="authlibUser" type="text" /></label>
+                <label><span data-i18n="settings.authlibPassword">Password</span> <input id="authlibPass" type="password" /></label>
                 <div class="row-inline" style="margin-top:8px">
-                    <button id="authlibLoginBtn" class="filled-btn"><span class="material-symbols-rounded">login</span> Login</button>
+                    <button id="authlibLoginBtn" class="filled-btn"><span class="material-symbols-rounded">login</span> <span data-i18n="settings.authlibLogin">Login</span></button>
                     <span id="authlibStatus" class="hint" style="margin:0"></span>
                 </div>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">speed</span> Performance</h3>
-                <label>Memory: <span id="ramLabel" class="value">4096 MB</span>
+                <h3><span class="material-symbols-rounded">speed</span> <span data-i18n="settings.performance">Performance</span></h3>
+                <label><span data-i18n="settings.memory">Memory</span>: <span id="ramLabel" class="value">4096 MB</span>
                     <input id="ram" type="range" min="1024" max="16384" step="512" />
                     <div class="ram-presets">
                         <button data-ram="2048" class="chip">2 GB</button>
@@ -245,39 +302,40 @@
                         <button data-ram="8192" class="chip">8 GB</button>
                     </div>
                 </label>
-                <label>Extra JVM arguments <input id="extraJvmArgs" type="text" placeholder="-XX:+UseG1GC" /></label>
+                <label><span data-i18n="settings.extraJvm">Extra JVM arguments</span> <input id="extraJvmArgs" type="text" placeholder="-XX:+UseG1GC" /></label>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">coffee</span> Java</h3>
-                <label>Java path <div class="row"><input id="javaPath" type="text" readonly /><button id="pickJava" class="outlined-btn">Browse</button></div></label>
-                <button id="detectJavaBtn" class="outlined-btn"><span class="material-symbols-rounded">search</span> Auto-detect Java</button>
+                <h3><span class="material-symbols-rounded">coffee</span> <span data-i18n="settings.java">Java</span></h3>
+                <label><span data-i18n="settings.javaPath">Java path</span> <div class="row"><input id="javaPath" type="text" readonly /><button id="pickJava" class="outlined-btn" data-i18n="settings.browse">Browse</button></div></label>
+                <button id="detectJavaBtn" class="outlined-btn"><span class="material-symbols-rounded">search</span> <span data-i18n="settings.detectJava">Auto-detect Java</span></button>
                 <div id="javaList" class="java-list"></div>
             </div>
 
             <div class="card">
-                <h3><span class="material-symbols-rounded">api</span> Modrinth API</h3>
-                <label>Personal Access Token (optional) <input id="modrinthToken" type="text" placeholder="mrp_..." /></label>
+                <h3><span class="material-symbols-rounded">api</span> <span data-i18n="settings.modrinthApi">Modrinth API</span></h3>
+                <label><span data-i18n="settings.modrinthToken">Personal Access Token (optional)</span> <input id="modrinthToken" type="text" placeholder="mrp_..." /></label>
             </div>
 
-            <button id="saveSettings" class="filled-btn"><span class="material-symbols-rounded">save</span> Save Settings</button>
+            <button id="saveSettings" class="filled-btn"><span class="material-symbols-rounded">save</span> <span data-i18n="settings.save">Save Settings</span></button>
         </section>
 
+        <!-- CONSOLE -->
         <section id="tab-console" class="tab">
             <div class="tab-header">
-                <div><h2>Console</h2><p class="tab-sub">Launcher and game logs</p></div>
+                <div><h2 data-i18n="console.title">Console</h2><p class="tab-sub" data-i18n="console.sub">Launcher and game logs</p></div>
                 <div class="row-inline">
-                    <input id="logFilter" type="text" placeholder="Filter..." class="mini-input" />
+                    <input id="logFilter" type="text" placeholder="Filter..." class="mini-input" data-i18n-placeholder="console.filter" />
                     <button id="clearLog" class="icon-btn" data-tooltip="Clear"><span class="material-symbols-rounded">delete</span></button>
                 </div>
             </div>
             <div class="log-filters">
-                <button class="chip active" data-type="all">All</button>
-                <button class="chip" data-type="info">Info</button>
-                <button class="chip" data-type="success">Success</button>
-                <button class="chip" data-type="warn">Warn</button>
-                <button class="chip" data-type="error">Error</button>
-                <button class="chip" data-type="game">Game</button>
+                <button class="chip active" data-type="all" data-i18n="console.all">All</button>
+                <button class="chip" data-type="info" data-i18n="console.info">Info</button>
+                <button class="chip" data-type="success" data-i18n="console.success">Success</button>
+                <button class="chip" data-type="warn" data-i18n="console.warn">Warn</button>
+                <button class="chip" data-type="error" data-i18n="console.error">Error</button>
+                <button class="chip" data-type="game" data-i18n="console.game">Game</button>
             </div>
             <pre id="log" class="log-full"></pre>
         </section>
@@ -291,14 +349,14 @@
             <button id="closeModal" class="icon-btn"><span class="material-symbols-rounded">close</span></button>
         </div>
         <div class="modal-tabs">
-            <button data-mtab="overview" class="active">Overview</button>
-            <button data-mtab="mods">Mods</button>
-            <button data-mtab="worlds">Worlds</button>
-            <button data-mtab="resourcepacks">Resource Packs</button>
-            <button data-mtab="screenshots">Screenshots</button>
-            <button data-mtab="backups">Backups</button>
-            <button data-mtab="crashes">Crashes</button>
-            <button data-mtab="advanced">Advanced</button>
+            <button data-mtab="overview" class="active" data-i18n="modal.overview">Overview</button>
+            <button data-mtab="mods" data-i18n="modal.mods">Mods</button>
+            <button data-mtab="worlds" data-i18n="modal.worlds">Worlds</button>
+            <button data-mtab="resourcepacks" data-i18n="modal.resourcepacks">Resource Packs</button>
+            <button data-mtab="screenshots" data-i18n="modal.screenshots">Screenshots</button>
+            <button data-mtab="backups" data-i18n="modal.backups">Backups</button>
+            <button data-mtab="crashes" data-i18n="modal.crashes">Crashes</button>
+            <button data-mtab="advanced" data-i18n="modal.advanced">Advanced</button>
         </div>
         <div id="modalBody" class="modal-body"></div>
     </div>
