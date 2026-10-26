@@ -15,7 +15,7 @@ Open-source launcher for the **Better Image Fix** modpack.
 Grab the latest build from [Releases](../../releases):
 - **Windows:** `BetterImgLauncher Setup 1.0.0.exe` (installer) or portable `.exe`
 - **macOS:** `BetterImgLauncher-1.0.0-universal.dmg`
-- **Linux:** `BetterImgLauncher-1.0.0.AppImage` or `.deb`
+- **Linux:** `BetterImgLauncher-1.0.0.AppImage'
 
 ## Installation notes
 - **Windows:** SmartScreen may warn — click *More info → Run anyway*.
